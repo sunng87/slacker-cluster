@@ -9,8 +9,7 @@
 (declare ^{:dynamic true} *zk-conn* )
 
 (defn- auto-detect-ip
-  "check IP address contains?
-   if not connect to zookeeper and getLocalAddress"
+  "detect IP by connecting to zookeeper"
   [zk-addr]
   (let [zk-address (split zk-addr #":")
         zk-ip (first zk-address)
