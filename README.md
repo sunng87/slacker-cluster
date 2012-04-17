@@ -2,3 +2,77 @@
 
 ![slacker](http://i.imgur.com/Jd02f.png)
 
+Leveraging on ZooKeeper, slacker has a solution for high
+availability and load balancing. You can have several slacker servers
+in a cluster serving functions. And the clustered slacker client will
+randomly select one of these server to invoke. Once a server is added
+to or removed from the cluster, the client will automatically
+establish connection to it. 
+
+To create such a slacker cluster, you have to deploy a zookeeper
+instance in your system.
+
+### Clustered Slacker Server
+
+On the server side, add an option `:cluster`. Some information is    
+required:
+
+``` clojure
+(use 'slacker.server.cluster)
+(start-slacker-server ...
+                      :cluster {:name "cluster-name"
+                                :zk "127.0.0.1:2181"})
+```
+
+Cluster information here:
+
+* `:name` the cluster name (*required*)
+* `:zk` zookeeper server address (*required*)
+* `:node` server IP (*optional*, if you don't provide the server IP
+  here, slacker will try to detect server IP by connecting to zk,
+  on which we assume that your slacker server are bound on the same
+  network with zookeeper)
+
+### Clustered Slacker Client
+
+On the client side, you have to specify the zookeeper address instead
+of a particular slacker server. Use the `clustered-slackerc`:
+
+``` clojure
+(use 'slacker.client.cluster)
+(def sc (clustered-slackerc "cluster-name" "127.0.0.1:2181"))
+(use-remote 'sc 'slapi)
+```
+
+You should make sure to use the `use-remote` and `defn-remote` from
+`slacker.client.cluster` instead of `slacker.client`.
+
+### Examples
+
+There is a cluster example in the source code. To run the server,
+start a zookeeper on your machine (127.0.0.1:2181)
+
+Start server instance:
+
+    lein run :cluster-server 2104
+
+Open a new terminal, start another server instance:
+
+    lein run :cluster-server 2105
+
+On another terminal, you can run the example client:
+
+    lein run :cluster-client
+
+By checking logs, you can trace the calls on each server instance.
+
+## Contributors
+
+* [lbt05](https://github.com/lbt05)
+
+## License
+
+Copyright (C) 2011-2012 Sun Ning
+
+Distributed under the Eclipse Public License, the same as Clojure.
+
