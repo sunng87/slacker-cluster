@@ -1,5 +1,6 @@
 (ns slacker.example.cluster-server
-  (:use [slacker server interceptor])
+  (:use [slacker.server.cluster])
+  (:use [slacker.interceptor])
   (:require [slacker.example.api]))
 
 (definterceptor log-function-calls

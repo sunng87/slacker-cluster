@@ -2,6 +2,7 @@
   (:require [zookeeper :as zk])
   (:use [slacker common serialization])
   (:use [clojure.string :only [split]])
+  (:require [slacker.server])
   (:require [slacker.utils :as utils])
   (:import java.net.Socket))
 
@@ -67,4 +68,21 @@
   [zk-conn & body]
   `(binding [*zk-conn* ~zk-conn]
      ~@body))
+
+(defn start-slacker-server
+  "Start a slacker server to expose all public functions under
+  a namespace. This function is enhanced for cluster support. You can
+  supply a zookeeper instance and a cluster name to the :cluster option
+  to register this server as a node of the cluster."
+  [exposed-ns port & options]
+  (apply slacker.server/start-slacker-server exposed-ns port options)
+  (let [{:keys [cluster]} options
+        exposed-ns (if (coll? exposed-ns) exposed-ns [exposed-ns])
+        funcs (apply merge
+                     (map slacker.server/ns-funcs exposed-ns))]
+    (when-not (nil? cluster)
+      (with-zk (zk/connect (:zk cluster))
+        (publish-cluster cluster port
+                         (map ns-name exposed-ns) funcs)))))
+
 
