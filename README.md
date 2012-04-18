@@ -12,10 +12,11 @@ establish connection to it.
 To create such a slacker cluster, you have to deploy a zookeeper
 instance in your system.
 
-### Clustered Slacker Server
+## Cluster Enabled Slacker Server
 
-On the server side, add an option `:cluster`. Some information is    
-required:
+On the server side, using the server starter function from 
+`slacker.server.cluster`, add an option `:cluster` and provide some 
+information.
 
 ``` clojure
 (use 'slacker.server.cluster)
@@ -33,7 +34,7 @@ Cluster information here:
   on which we assume that your slacker server are bound on the same
   network with zookeeper)
 
-### Clustered Slacker Client
+## Cluster Enabled Slacker Client
 
 On the client side, you have to specify the zookeeper address instead
 of a particular slacker server. Use the `clustered-slackerc`:
@@ -47,7 +48,7 @@ of a particular slacker server. Use the `clustered-slackerc`:
 You should make sure to use the `use-remote` and `defn-remote` from
 `slacker.client.cluster` instead of `slacker.client`.
 
-### Examples
+## Examples
 
 There is a cluster example in the source code. To run the server,
 start a zookeeper on your machine (127.0.0.1:2181)
