@@ -1,7 +1,7 @@
-(defproject slacker/slacker-cluster "0.8.0-SNAPSHOT"
+(defproject slacker/slacker-cluster "0.8.0"
   :description "Cluster support for slacker"
   :dependencies [[org.clojure/clojure "1.3.0"]
-                 [slacker "0.8.0-SNAPSHOT"]
+                 [slacker "0.8.0"]
                  [zookeeper-clj "0.9.2"
                   :exclusions [jline junit]]
                  [org.clojure/tools.logging "0.2.3"]]

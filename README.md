@@ -12,6 +12,10 @@ establish connection to it.
 To create such a slacker cluster, you have to deploy a zookeeper
 instance in your system.
 
+## Leiningen
+
+`[slacker/slacker-cluster "0.8.0"]`
+
 ## Cluster Enabled Slacker Server
 
 On the server side, using the server starter function from 
