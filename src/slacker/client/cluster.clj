@@ -58,8 +58,8 @@
     :NodeChildrenChanged (refresh-all-servers sc) ;;TODO
     nil))
 
-(defn- meta-data-from-zk [zk-conn cluster-name fname]
-  (let [fnode (utils/zk-path cluster-name "functions" fname)]
+(defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
+  (let [fnode (utils/zk-path zk-root cluster-name "functions" fname)]
     (if-let [node-data (zk/data zk-conn fnode)]
       (deserialize :clj (:data node-data) :bytes))))
 
@@ -69,7 +69,8 @@
      options]
   CoordinatorAwareClient
   (refresh-associated-servers [this nsname]
-    (let [node-path (utils/zk-path cluster-name "namespaces" nsname)
+    (let [node-path (utils/zk-path (:zk-root options)
+                                   cluster-name "namespaces" nsname)
           servers (zk/children zk-conn node-path
                                :watch? true)]
       ;; update servers for this namespace
@@ -82,7 +83,7 @@
             (swap! slacker-clients assoc s sc))))
       servers))
   (refresh-all-servers [this]
-    (let [node-path (utils/zk-path cluster-name "servers")
+    (let [node-path (utils/zk-path (:zk-root options) cluster-name "servers")
           servers (into #{} (zk/children zk-conn node-path :watch? true))]
       ;; close connection to offline servers, remove from slacker-clients
       (doseq [s (keys @slacker-clients)]
@@ -121,10 +122,12 @@
     (case cmd
       :functions
       (let [nsname (or args "")
-            ns-root (utils/zk-path cluster-name "functions" nsname)
+            ns-root (utils/zk-path (:zk-root options) cluster-name
+                                   "functions" nsname)
             fnames (or (zk/children zk-conn ns-root) [])]
         (map #(str nsname "/" %) fnames))
-      :meta (meta-data-from-zk zk-conn cluster-name args))))
+      :meta (meta-data-from-zk zk-conn (:zk-root options)
+                               cluster-name args))))
 
 (defn- on-zk-events [e sc]
   (if (.endsWith ^String (:path e) "servers")
@@ -147,8 +150,10 @@
             options)]
     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
     ;; watch 'servers' node
-    (zk/children zk-conn
-                 (utils/zk-path cluster-name "servers") :watch? true)
+    (zk/children zk-conn (utils/zk-path (:zk-root options)
+                                        cluster-name
+                                        "servers")
+                 :watch? true)
     sc))
 
 

@@ -38,22 +38,30 @@
   "publish server information to zookeeper as cluster for client"
   [cluster port ns-names funcs-map]
   (let [cluster-name (cluster :name)
+        zk-root (cluster :zk-root)
         server-node (str (or (cluster :node)
                              (auto-detect-ip (:zk cluster)))
                          ":" port)
         funcs (keys funcs-map)]
-    (create-node *zk-conn* (utils/zk-path cluster-name "servers")
+    (create-node *zk-conn* (utils/zk-path zk-root cluster-name "servers")
                  :persistent? true)
-    (create-node *zk-conn*
-                 (utils/zk-path cluster-name "servers" server-node ))
+    (create-node *zk-conn* (utils/zk-path zk-root
+                                          cluster-name
+                                          "servers"
+                                          server-node ))
     (doseq [nn ns-names]
-      (create-node *zk-conn* (utils/zk-path cluster-name "namespaces" nn)
+      (create-node *zk-conn* (utils/zk-path zk-root
+                                            cluster-name
+                                            "namespaces"
+                                            nn)
                    :persistent? true)
-      (create-node *zk-conn* (utils/zk-path cluster-name "namespaces"
+      (create-node *zk-conn* (utils/zk-path zk-root
+                                            cluster-name
+                                            "namespaces"
                                             nn server-node)))
     (doseq [fname funcs]
       (create-node *zk-conn*
-                   (utils/zk-path cluster-name "functions" fname  )
+                   (utils/zk-path zk-root cluster-name "functions" fname)
                    :persistent? true
                    :data (serialize
                           :clj
