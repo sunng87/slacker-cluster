@@ -2,14 +2,14 @@
 
 ![slacker](http://i.imgur.com/Jd02f.png)
 
-Leveraging on ZooKeeper, slacker has a solution for high
+With help from ZooKeeper, slacker has a solution for high
 availability and load balancing. You can have several slacker servers
 in a cluster serving functions. And the clustered slacker client will
 randomly select one of these server to invoke. Once a server is added
 to or removed from the cluster, the client will automatically
-establish connection to it. 
+establish/destroy the connection to it. 
 
-To create such a slacker cluster, you have to deploy a zookeeper
+To create such a slacker cluster, you have to deploy at least one zookeeper
 instance in your system.
 
 ## Leiningen
@@ -49,7 +49,7 @@ of a particular slacker server. Use the `clustered-slackerc`:
 (use-remote 'sc 'slapi)
 ```
 
-You should make sure to use the `use-remote` and `defn-remote` from
+*Important*: You should make sure to use the `use-remote` and `defn-remote` from
 `slacker.client.cluster` instead of `slacker.client`.
 
 ## Examples
