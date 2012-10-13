@@ -77,7 +77,7 @@
       (swap! slacker-ns-servers assoc nsname servers)
       ;; establish connection if the server is not connected
       (doseq [s servers]
-        (if-not (contains? slacker-clients s)
+        (if-not (contains? @slacker-clients s)
           (let [sc (apply create-slackerc s options)]
             (logging/info (str "establishing connection to " s))
             (swap! slacker-clients assoc s sc))))
