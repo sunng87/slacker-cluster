@@ -1,4 +1,4 @@
-(defproject slacker/slacker-cluster "0.8.4"
+(defproject slacker/slacker-cluster "0.8.4.1"
   :description "Cluster support for slacker"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
@@ -11,7 +11,6 @@
   :profiles {:dev {:resource-paths ["examples"]
                    :dependencies [[codox "0.6.1"]]}
              :1.3 {:dependencies [org.clojure/clojure "1.3.0"]}}
-  :plugins [[lein-exec "0.2.0"]]
   :warn-on-reflection true
   :aliases {"run-example-server" ["run" "-m" "slacker.example.cluster-server"]
             "run-example-client" ["run" "-m" "slacker.example.cluster-client"]})
