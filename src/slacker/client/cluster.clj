@@ -78,7 +78,7 @@
       ;; establish connection if the server is not connected
       (doseq [s servers]
         (if-not (contains? @slacker-clients s)
-          (let [sc (apply create-slackerc s options)]
+          (let [sc (apply create-slackerc s (flatten (vec options)))]
             (logging/info (str "establishing connection to " s))
             (swap! slacker-clients assoc s sc))))
       servers))
@@ -140,7 +140,7 @@
 
 (defn clustered-slackerc
   "create a cluster enalbed slacker client"
-  [cluster-name zk-server & options]
+  [cluster-name zk-server & {:keys [zk-root & _] :as options}]
   (let [zk-conn (zk/connect zk-server)
         slacker-clients (atom {})
         slacker-ns-servers (atom {})
@@ -150,7 +150,7 @@
             options)]
     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
     ;; watch 'servers' node
-    (zk/children zk-conn (utils/zk-path (:zk-root options)
+    (zk/children zk-conn (utils/zk-path zk-root
                                         cluster-name
                                         "servers")
                  :watch? true)
