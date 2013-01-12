@@ -74,6 +74,7 @@ By checking logs, you can trace the calls on each server instance.
 ## Contributors
 
 * [lbt05](https://github.com/lbt05)
+* [johnchapin](https://github.com/johnchapin)
 
 ## License
 
