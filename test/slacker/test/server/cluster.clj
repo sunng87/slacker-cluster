@@ -9,12 +9,14 @@
 
 (defn- create-data [cluster-map]
   (doall
-   (map #(zk-path %1 "functions" %2)
+   (map #(zk-path (:zk-root cluster-map) %1 "functions" %2)
         (repeat (cluster-map :name))
         (keys funcs))))
 
 (deftest test-publish-cluster
-  (let [cluster-map {:name "test-cluster" :zk "127.0.0.1:2181"}
+  (let [cluster-map {:name "test-cluster"
+                     :zk "127.0.0.1:2181"
+                     :zk-root "/slacker/cluster/"}
         node-list (create-data cluster-map)
         test-conn (zk/connect "127.0.0.1:2181")
         zk-conn (zk/connect "127.0.0.1:2181")]
@@ -25,7 +27,8 @@
     (is (false? (every? (fn[x](false? x))
                         (map zk/children (repeat test-conn) node-list))))
     (is (not (nil? (zk/exists test-conn
-                              (zk-path (:name cluster-map)
+                              (zk-path (:zk-root cluster-map)
+                                       (:name cluster-map)
                                        "servers"
                                        (str "127.0.0.1:2104"))))))
     ;; close the server connection, ephemeral node will be deleted
@@ -34,16 +37,19 @@
     ;; we want to make that the server is no longer listed in our
     ;; serevr directory
     (is (nil? (zk/exists test-conn
-                         (zk-path (:name cluster-map)
+                         (zk-path (:zk-root cluster-map)
+                                  (:name cluster-map)
                                   "servers"
                                   (str "127.0.0.1:2104")))))
 
-    (is (false? (zk/children test-conn (zk-path (:name cluster-map)
+    (is (false? (zk/children test-conn (zk-path (:zk-root cluster-map) 
+                                                (:name cluster-map)
                                                 "namespaces"
                                                 (first namespaces)
                                                 "127.0.0.1:2104"))))
     
     ;; clean up
-    (zk/delete-all test-conn (zk-path (:name cluster-map)))
+    (zk/delete-all test-conn (zk-path  (:zk-root cluster-map)
+                                       (:name cluster-map)))
     (zk/close test-conn)))
 

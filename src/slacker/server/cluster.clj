@@ -38,7 +38,7 @@
   "publish server information to zookeeper as cluster for client"
   [cluster port ns-names funcs-map]
   (let [cluster-name (cluster :name)
-        zk-root (cluster :zk-root)
+        zk-root (cluster :zk-root "/slacker/cluster/")
         server-node (str (or (cluster :node)
                              (auto-detect-ip (:zk cluster)))
                          ":" port)

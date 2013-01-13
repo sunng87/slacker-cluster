@@ -142,12 +142,13 @@
   "create a cluster enalbed slacker client"
   [cluster-name zk-server & {:keys [zk-root & _] :as options}]
   (let [zk-conn (zk/connect zk-server)
+        zk-root (or zk-root "/slacker/cluster/")
         slacker-clients (atom {})
         slacker-ns-servers (atom {})
         sc (ClusterEnabledSlackerClient.
             cluster-name zk-conn
             slacker-clients slacker-ns-servers
-            options)]
+            (assoc options :zk-root zk-root))]
     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
     ;; watch 'servers' node
     (zk/children zk-conn (utils/zk-path zk-root

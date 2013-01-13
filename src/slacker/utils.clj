@@ -6,7 +6,10 @@
 (defn zk-path
   "concat a list of string to zookeeper path"
   [zk-root & nodes]
-  (str (or zk-root "/slacker/cluster/") (join "/" nodes)))
+  (let [path (str zk-root (join "/" nodes))]
+    (if (= (.charAt ^String path 0) \/)
+      path
+      (str "/" path))))
 
 (defn escape-zkpath [fname]
   (replace fname "/" "_slash_"))
