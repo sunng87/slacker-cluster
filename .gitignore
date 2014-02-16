@@ -1,4 +1,5 @@
 pom.xml
+*.asc
 *jar
 /lib/
 /doc/
