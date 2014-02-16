@@ -91,5 +91,3 @@
       (with-zk (zk/connect (:zk cluster))
         (publish-cluster cluster port
                          (map ns-name exposed-ns) funcs)))))
-
-

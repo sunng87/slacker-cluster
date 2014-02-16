@@ -97,7 +97,7 @@
     @slacker-ns-servers)
   (delete-ns-mapping [this ns]
     (swap! slacker-ns-servers dissoc ns))
-  
+
   SlackerClientProtocol
   (sync-call-remote [this ns-name func-name params]
     (let [fname (str ns-name "/" func-name)
@@ -156,5 +156,3 @@
                                         "servers")
                  :watch? true)
     sc))
-
-

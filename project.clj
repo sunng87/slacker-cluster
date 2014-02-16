@@ -1,17 +1,15 @@
-(defproject slacker/slacker-cluster "0.9.0"
+(defproject slacker/slacker-cluster "0.10.0"
   :description "Cluster support for slacker"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :min-lein-version "2.0.0"
-  :dependencies [[org.clojure/clojure "1.4.0"]
-                 [slacker "0.9.0"]
-                 [zookeeper-clj "0.9.2"
+  :dependencies [[org.clojure/clojure "1.5.1"]
+                 [slacker "0.10.1"]
+                 [zookeeper-clj "0.9.3"
                   :exclusions [jline junit]]
                  [org.clojure/tools.logging "0.2.4"]]
-  :profiles {:dev {:resource-paths ["examples"]
+  :profiles {:dev {:source-paths ["examples"]
                    :dependencies [[codox "0.6.1"]]}
              :1.3 {:dependencies [org.clojure/clojure "1.3.0"]}}
   :warn-on-reflection true
-  :aliases {"run-example-server" ["run" "-m" "slacker.example.cluster-server"]
-            "run-example-client" ["run" "-m" "slacker.example.cluster-client"]})
-
+  :aliases {"run-example-server" ["with-profile" "default,dev" "run" "-m" "slacker.example.cluster-server"]
+            "run-example-client" ["with-profile" "default,dev" "run" "-m" "slacker.example.cluster-client"]})
