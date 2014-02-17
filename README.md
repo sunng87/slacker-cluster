@@ -78,7 +78,7 @@ By checking logs, you can trace the calls on each server instance.
 
 ## License
 
-Copyright (C) 2011-2012 Sun Ning
+Copyright (C) 2011-2014 Sun Ning
 
 Distributed under the Eclipse Public License, the same as Clojure.
 
