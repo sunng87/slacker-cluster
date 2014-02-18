@@ -94,6 +94,17 @@ define how many values to return for the call. Possible values are:
 Note that `:vector` and `:map` would break default behavior of the
 function call, and change return type.
 
+### Grouping at function level
+
+You can also define `:grouping` and `:grouping-results` function at
+`defn-remote` level.
+
+```clojure
+(defn-remote sc slacker.example.api/timestamp
+  :grouping :all
+  :grouping-results :single)
+```
+
 ## Examples
 
 There is a cluster example in the source code. To run the server,
