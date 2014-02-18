@@ -7,9 +7,9 @@
                  [zookeeper-clj "0.9.3"
                   :exclusions [jline junit]]
                  [org.clojure/tools.logging "0.2.4"]]
-  :profiles {:dev {:source-paths ["examples"]}
+  :profiles {:example {:source-paths ["examples"]}
              :1.3 {:dependencies [org.clojure/clojure "1.3.0"]}}
   :plugins [[codox "0.6.7"]]
   :global-vars {*warn-on-reflection* true}
-  :aliases {"run-example-server" ["with-profile" "default,dev" "run" "-m" "slacker.example.cluster-server"]
-            "run-example-client" ["with-profile" "default,dev" "run" "-m" "slacker.example.cluster-client"]})
+  :aliases {"run-example-server" ["with-profile" "default,example" "run" "-m" "slacker.example.cluster-server"]
+            "run-example-client" ["with-profile" "default,example" "run" "-m" "slacker.example.cluster-client"]})
