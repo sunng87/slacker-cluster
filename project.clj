@@ -10,6 +10,6 @@
   :profiles {:dev {:source-paths ["examples"]}
              :1.3 {:dependencies [org.clojure/clojure "1.3.0"]}}
   :plugins [[codox "0.6.7"]]
-  :warn-on-reflection true
+  :global-vars {*warn-on-reflection* true}
   :aliases {"run-example-server" ["with-profile" "default,dev" "run" "-m" "slacker.example.cluster-server"]
             "run-example-client" ["with-profile" "default,dev" "run" "-m" "slacker.example.cluster-client"]})
