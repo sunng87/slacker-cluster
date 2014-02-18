@@ -74,7 +74,8 @@
 
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
-     slacker-clients slacker-ns-servers grouping
+     slacker-clients slacker-ns-servers
+     grouping grouping-results
      options]
   CoordinatorAwareClient
   (refresh-associated-servers [this nsname]
@@ -117,7 +118,7 @@
                           func-name " on " target-servers))
       (let [call-results (doall (map #(sync-call-remote % ns-name func-name params)
                                      target-conns))]
-        (case (:grouping-results options)
+        (case (grouping-results ns-name func-name params)
           :single (first call-results)
           :vector (vec call-results)
           :map (into {} (map vector target-servers call-results))))))
@@ -130,7 +131,7 @@
                           func-name " on " target-servers))
       (let [call-results (doall (map #(async-call-remote % ns-name func-name params cb)
                                      target-conns))]
-        (case (:grouping-results options)
+        (case (grouping-results ns-name func-name params)
           :single (first call-results)
           :vector (vec call-results)
           :map (into {} (map vector target-servers call-results))))))
@@ -175,6 +176,7 @@
                       * `:single` returns only one value
                       * `:vector` returns values from all servers as a vector
                       * `:map` returns values from all servers as a map, server host:port as key
+                      * `(fn [ns fname params])` a function that returns keywords above
                       Note that if you use :vector or :map, you will break default behavior of
                       the function"
 
@@ -187,11 +189,14 @@
         slacker-clients (atom {})
         slacker-ns-servers (atom {})
         grouping (if-not (fn? grouping) (constantly grouping) grouping)
+        grouping-results (if-not (fn? grouping-results)
+                           (constantly grouping-results)
+                           grouping-results)
         sc (ClusterEnabledSlackerClient.
             cluster-name zk-conn
             slacker-clients slacker-ns-servers
-            grouping
-            (assoc options :zk-root zk-root :grouping-results grouping-results))]
+            grouping grouping-results
+            (assoc options :zk-root zk-root))]
     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
     ;; watch 'servers' node
     (zk/children zk-conn (utils/zk-path zk-root
