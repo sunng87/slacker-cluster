@@ -72,6 +72,11 @@
     (if-let [node-data (zk/data zk-conn fnode)]
       (deserialize :clj (:data node-data) :bytes))))
 
+(defn- to-fn [f]
+  (if-not (fn? f)
+    (constantly f)
+    f))
+
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
      slacker-clients slacker-ns-servers
@@ -109,29 +114,31 @@
     (swap! slacker-ns-servers dissoc ns))
 
   SlackerClientProtocol
-  (sync-call-remote [this ns-name func-name params]
-    (let [fname (str ns-name "/" func-name)
+  (sync-call-remote [this ns-name func-name params call-options]
+    (let [grouping* (to-fn (:grouping call-options grouping))
+          grouping-results* (to-fn (:grouping-results call-options grouping-results))
           target-servers (find-server slacker-ns-servers ns-name
-                                     (partial grouping ns-name func-name params))
+                                     (partial grouping* ns-name func-name params))
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (doall (map #(sync-call-remote % ns-name func-name params)
+      (let [call-results (doall (map #(sync-call-remote % ns-name func-name params call-options)
                                      target-conns))]
-        (case (grouping-results ns-name func-name params)
+        (case (grouping-results* ns-name func-name params)
           :single (first call-results)
           :vector (vec call-results)
           :map (into {} (map vector target-servers call-results))))))
-  (async-call-remote [this ns-name func-name params cb]
-    (let [fname (str ns-name "/" func-name)
+  (async-call-remote [this ns-name func-name params cb call-options]
+    (let [grouping* (to-fn (:grouping call-options grouping))
+          grouping-results* (to-fn (:grouping-results call-options grouping-results))
           target-servers (find-server slacker-ns-servers ns-name
-                                     (partial grouping ns-name func-name params))
+                                     (partial grouping* ns-name func-name params))
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (doall (map #(async-call-remote % ns-name func-name params cb)
+      (let [call-results (doall (map #(async-call-remote % ns-name func-name params cb call-options)
                                      target-conns))]
-        (case (grouping-results ns-name func-name params)
+        (case (grouping-results* ns-name func-name params)
           :single (first call-results)
           :vector (vec call-results)
           :map (into {} (map vector target-servers call-results))))))
@@ -188,10 +195,6 @@
   (let [zk-conn (zk/connect zk-server)
         slacker-clients (atom {})
         slacker-ns-servers (atom {})
-        grouping (if-not (fn? grouping) (constantly grouping) grouping)
-        grouping-results (if-not (fn? grouping-results)
-                           (constantly grouping-results)
-                           grouping-results)
         sc (ClusterEnabledSlackerClient.
             cluster-name zk-conn
             slacker-clients slacker-ns-servers
