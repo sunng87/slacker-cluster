@@ -115,10 +115,12 @@
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (if (= 1 (count target-conns))
-        (sync-call-remote (first target-conns) ns-name func-name params)
-        (first (doall (map #(sync-call-remote % ns-name func-name params)
-                           target-conns))))))
+      (let [call-results (doall (map #(sync-call-remote % ns-name func-name params)
+                                     target-conns))]
+        (case (:grouping-results options)
+          :single (first call-results)
+          :vector (vec call-results)
+          :map (into {} (map vector target-servers call-results))))))
   (async-call-remote [this ns-name func-name params cb]
     (let [fname (str ns-name "/" func-name)
           target-servers (find-server slacker-ns-servers ns-name
@@ -126,10 +128,12 @@
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (if (= 1 (count target-conns))
-        (async-call-remote (first target-conns) ns-name func-name params cb)
-        (first (doall (map #(async-call-remote % ns-name func-name params cb)
-                           target-conns))))))
+      (let [call-results (doall (map #(async-call-remote % ns-name func-name params cb)
+                                     target-conns))]
+        (case (:grouping-results options)
+          :single (first call-results)
+          :vector (vec call-results)
+          :map (into {} (map vector target-servers call-results))))))
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)] (close s))
@@ -165,10 +169,19 @@
                 * `:random` choose a server by random (default)
                 * `:all` call function on all servers
                 * `(fn [ns fname params servers])` specify a function to choose.
-                   you can also return :random or :all in this function"
+                   you can also return :random or :all in this function
+  * grouping-results: when you call functions on multiple server, you can specify
+                      how many results return for the call. possible values:
+                      * `:single` returns only one value
+                      * `:vector` returns values from all servers as a vector
+                      * `:map` returns values from all servers as a map, server host:port as key
+                      Note that if you use :vector or :map, you will break default behavior of
+                      the function"
 
-  [cluster-name zk-server & {:keys [zk-root grouping]
-                             :or {zk-root "/slacker/cluster" grouping :random}
+  [cluster-name zk-server & {:keys [zk-root grouping grouping-results]
+                             :or {zk-root "/slacker/cluster"
+                                  grouping :random
+                                  grouping-results :single}
                              :as options}]
   (let [zk-conn (zk/connect zk-server)
         slacker-clients (atom {})
@@ -178,7 +191,7 @@
             cluster-name zk-conn
             slacker-clients slacker-ns-servers
             grouping
-            (assoc options :zk-root zk-root))]
+            (assoc options :zk-root zk-root :grouping-results grouping-results))]
     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
     ;; watch 'servers' node
     (zk/children zk-conn (utils/zk-path zk-root
