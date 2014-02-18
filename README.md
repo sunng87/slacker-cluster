@@ -7,7 +7,7 @@ availability and load balancing. You can have several slacker servers
 in a cluster serving functions. And the clustered slacker client will
 randomly select one of these server to invoke. Once a server is added
 to or removed from the cluster, the client will automatically
-establish/destroy the connection to it. 
+establish/destroy the connection to it.
 
 To create such a slacker cluster, you have to deploy at least one zookeeper
 instance in your system.
@@ -18,8 +18,8 @@ instance in your system.
 
 ## Cluster Enabled Slacker Server
 
-On the server side, using the server starter function from 
-`slacker.server.cluster`, add an option `:cluster` and provide some 
+On the server side, using the server starter function from
+`slacker.server.cluster`, add an option `:cluster` and provide some
 information.
 
 ``` clojure
@@ -52,6 +52,30 @@ of a particular slacker server. Use the `clustered-slackerc`:
 *Important*: You should make sure to use the `use-remote` and `defn-remote` from
 `slacker.client.cluster` instead of `slacker.client`.
 
+## Client Grouping
+
+New in 0.10.1. By default, slacker cluster client randomly pick a
+server to run your invocation. But at some situation, you may like to
+override this behavior, for example, run a function on all servers.
+
+The grouping option gives you total control of this behavior.
+
+```clojure
+(defn my-grouping [ns-name fn-name params servers]
+  ...)
+
+(clustered-slackerc "cluster-name" "127.0.0.1:2181" :grouping my-grouping)
+```
+
+The first three arguments represent your current invocation. And you
+can return one or more servers based on the information and your
+business logic.
+
+You can also return constant value:
+
+* `:all` call on all servers available
+* `:random` pick a random server to call
+
 ## Examples
 
 There is a cluster example in the source code. To run the server,
@@ -81,4 +105,3 @@ By checking logs, you can trace the calls on each server instance.
 Copyright (C) 2011-2014 Sun Ning
 
 Distributed under the Eclipse Public License, the same as Clojure.
-

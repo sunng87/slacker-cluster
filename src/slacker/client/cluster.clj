@@ -42,9 +42,18 @@
 (defn- create-slackerc [connection-info & options]
   (apply slacker.client/slackerc connection-info options))
 
-(defn- find-server [slacker-ns-servers ns-name]
+(defn- find-server [slacker-ns-servers ns-name grouping]
   (if-let [servers (@slacker-ns-servers ns-name)]
-    (rand-nth servers)
+    (let [grouped-servers (grouping servers)
+          selected-servers (case grouped-servers
+                             :all servers
+                             :random [(rand-nth servers)]
+                             (if (sequential? grouped-servers)
+                               grouped-servers
+                               (vector grouped-servers)))]
+      (if-not (empty? selected-servers)
+        selected-servers
+        (throw+ {:code :not-found})))
     (throw+ {:code :not-found})))
 
 (defn- ns-callback [e sc nsname]
@@ -65,7 +74,7 @@
 
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
-     slacker-clients slacker-ns-servers
+     slacker-clients slacker-ns-servers grouping
      options]
   CoordinatorAwareClient
   (refresh-associated-servers [this nsname]
@@ -101,18 +110,26 @@
   SlackerClientProtocol
   (sync-call-remote [this ns-name func-name params]
     (let [fname (str ns-name "/" func-name)
-          target-server (find-server slacker-ns-servers ns-name)
-          target-conn (@slacker-clients target-server)]
+          target-servers (find-server slacker-ns-servers ns-name
+                                     (partial grouping ns-name func-name params))
+          target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
-                          func-name " on " target-server))
-      (sync-call-remote target-conn ns-name func-name params)))
+                          func-name " on " target-servers))
+      (if (= 1 (count target-conns))
+        (sync-call-remote (first target-conns) ns-name func-name params)
+        (first (doall (map #(sync-call-remote % ns-name func-name params)
+                           target-conns))))))
   (async-call-remote [this ns-name func-name params cb]
     (let [fname (str ns-name "/" func-name)
-          target-server (find-server slacker-ns-servers ns-name)
-          target-conn (@slacker-clients target-server)]
+          target-servers (find-server slacker-ns-servers ns-name
+                                     (partial grouping ns-name func-name params))
+          target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
-                          func-name " on " target-server))
-      (async-call-remote target-conn ns-name func-name params cb)))
+                          func-name " on " target-servers))
+      (if (= 1 (count target-conns))
+        (async-call-remote (first target-conns) ns-name func-name params cb)
+        (first (doall (map #(async-call-remote % ns-name func-name params cb)
+                           target-conns))))))
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)] (close s))
@@ -139,15 +156,28 @@
         (ns-callback e sc (second matcher))))))
 
 (defn clustered-slackerc
-  "create a cluster enalbed slacker client"
-  [cluster-name zk-server & {:keys [zk-root & _] :as options}]
+  "create a cluster enalbed slacker client
+  options:
+  * zk-root: specify the root path in zookeeper
+  * grouping: specify how the client select servers to call,
+              this allows one or more servers to be called.
+              possible values:
+                * `:random` choose a server by random (default)
+                * `:all` call function on all servers
+                * `(fn [ns fname params servers])` specify a function to choose.
+                   you can also return :random or :all in this function"
+
+  [cluster-name zk-server & {:keys [zk-root grouping]
+                             :or {zk-root "/slacker/cluster" grouping :random}
+                             :as options}]
   (let [zk-conn (zk/connect zk-server)
-        zk-root (or zk-root "/slacker/cluster/")
         slacker-clients (atom {})
         slacker-ns-servers (atom {})
+        grouping (if-not (fn? grouping) (constantly grouping) grouping)
         sc (ClusterEnabledSlackerClient.
             cluster-name zk-conn
             slacker-clients slacker-ns-servers
+            grouping
             (assoc options :zk-root zk-root))]
     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
     ;; watch 'servers' node
