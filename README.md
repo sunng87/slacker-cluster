@@ -76,6 +76,21 @@ You can also return constant value:
 * `:all` call on all servers available
 * `:random` pick a random server to call
 
+### Grouping results
+
+When you are using :grouping function, you might get multiple return
+values from different servers. A new option `:grouping-results` is to
+define how many values to return for the call. Possible values are:
+
+* `:single` default, only return a single value, behavior same as the
+  function call
+* `:vector` returns values from different servers as a vector
+* `:map` returns values from different servers as a map, with server's
+  host:port as key
+
+Note that `:vector` and `:map` would break default behavior of the
+function call, and change return type.
+
 ## Examples
 
 There is a cluster example in the source code. To run the server,
