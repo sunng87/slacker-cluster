@@ -112,15 +112,15 @@ start a zookeeper on your machine (127.0.0.1:2181)
 
 Start server instance:
 
-    lein2 run-example-server 2104
+    lein run-example-server 2104
 
 Open a new terminal, start another server instance:
 
-    lein2 run-example-server 2105
+    lein run-example-server 2105
 
 On another terminal, you can run the example client:
 
-    lein2 run-example-client
+    lein run-example-client
 
 By checking logs, you can trace the calls on each server instance.
 
