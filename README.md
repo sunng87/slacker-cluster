@@ -14,7 +14,7 @@ instance in your system.
 
 ## Leiningen
 
-`[slacker/slacker-cluster "0.10.4"]`
+`[slacker/slacker-cluster "0.10.5"]`
 
 ## Cluster Enabled Slacker Server
 
