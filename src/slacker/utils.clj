@@ -6,7 +6,7 @@
 (defn zk-path
   "concat a list of string to zookeeper path"
   [zk-root & nodes]
-  (let [zk-root (if (.endsWith zk-root "/")
+  (let [zk-root (if (.endsWith ^String zk-root "/")
                   zk-root (str zk-root "/"))
         path (str zk-root (join "/" nodes))]
     (if (= (.charAt ^String path 0) \/)
