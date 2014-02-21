@@ -24,23 +24,17 @@
         remote-ns (if remote-ns-declared
                     (first (split fname-str #"/" 2))
                     remote-ns)]
-    `(do
-       (when (nil? ((get-ns-mappings ~sc) ~remote-ns))
-         (refresh-associated-servers ~sc ~remote-ns))
-       (slacker.client/defn-remote ~sc ~fname ~@options))))
+    `(slacker.client/defn-remote ~sc ~fname ~@options)))
 
 (defn use-remote
   "cluster enabled use-remote"
   ([sc-sym] (use-remote sc-sym (ns-name *ns*)))
   ([sc-sym rns & options]
      (let [sc @(resolve sc-sym)]
-       (do
-         (when (nil? ((get-ns-mappings sc) (str rns)))
-           (refresh-associated-servers sc (str rns)))
-         (apply slacker.client/use-remote sc-sym rns options)))))
+       (apply slacker.client/use-remote sc-sym rns options))))
 
 (defn- create-slackerc [connection-info & options]
-  (apply slacker.client/slackerc connection-info options))
+  @(apply slacker.client/slackerc connection-info options))
 
 (defn- find-server [slacker-ns-servers ns-name grouping]
   (if-let [servers (@slacker-ns-servers ns-name)]
@@ -115,6 +109,8 @@
 
   SlackerClientProtocol
   (sync-call-remote [this ns-name func-name params call-options]
+    (when (nil? ((get-ns-mappings this) ns-name))
+      (refresh-associated-servers this ns-name))
     (let [grouping* (to-fn (:grouping call-options grouping))
           grouping-results* (to-fn (:grouping-results call-options grouping-results))
           target-servers (find-server slacker-ns-servers ns-name
@@ -129,6 +125,8 @@
           :vector (vec call-results)
           :map (into {} (map vector target-servers call-results))))))
   (async-call-remote [this ns-name func-name params cb call-options]
+    (when (nil? ((get-ns-mappings this) ns-name))
+      (refresh-associated-servers this ns-name))
     (let [grouping* (to-fn (:grouping call-options grouping))
           grouping-results* (to-fn (:grouping-results call-options grouping-results))
           target-servers (find-server slacker-ns-servers ns-name
@@ -192,18 +190,18 @@
                                   grouping :random
                                   grouping-results :single}
                              :as options}]
-  (let [zk-conn (zk/connect zk-server)
-        slacker-clients (atom {})
-        slacker-ns-servers (atom {})
-        sc (ClusterEnabledSlackerClient.
-            cluster-name zk-conn
-            slacker-clients slacker-ns-servers
-            grouping grouping-results
-            (assoc options :zk-root zk-root))]
-    (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
-    ;; watch 'servers' node
-    (zk/children zk-conn (utils/zk-path zk-root
-                                        cluster-name
-                                        "servers")
-                 :watch? true)
-    sc))
+  (delay
+   (let [zk-conn (zk/connect zk-server)
+         slacker-clients (atom {})
+         slacker-ns-servers (atom {})
+         sc (ClusterEnabledSlackerClient.
+             cluster-name zk-conn
+             slacker-clients slacker-ns-servers
+             grouping grouping-results
+             (assoc options :zk-root zk-root))]
+     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
+     ;; watch 'servers' node
+     (zk/children zk-conn
+                  (utils/zk-path zk-root cluster-name "servers")
+                  :watch? true)
+     sc)))
