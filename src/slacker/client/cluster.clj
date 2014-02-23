@@ -34,7 +34,7 @@
        (apply slacker.client/use-remote sc-sym rns options))))
 
 (defn- create-slackerc [connection-info & options]
-  @(apply slacker.client/slackerc connection-info options))
+  (apply slacker.client/slackerc connection-info options))
 
 (defn- find-server [slacker-ns-servers ns-name grouping]
   (if-let [servers (@slacker-ns-servers ns-name)]
@@ -98,7 +98,7 @@
       (doseq [s (keys @slacker-clients)]
         (when-not (contains? servers s)
           (logging/info (str "closing connection of " s))
-          (close (@slacker-clients s))
+          (slacker.client/close-slackerc (@slacker-clients s))
           (swap! slacker-clients dissoc s)))))
   (get-connected-servers [this]
     (keys @slacker-clients))
@@ -118,7 +118,7 @@
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (doall (map #(sync-call-remote % ns-name func-name params call-options)
+      (let [call-results (doall (map #(sync-call-remote @% ns-name func-name params call-options)
                                      target-conns))]
         (case (grouping-results* ns-name func-name params)
           :single (first call-results)
@@ -134,7 +134,7 @@
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (doall (map #(async-call-remote % ns-name func-name params cb call-options)
+      (let [call-results (doall (map #(async-call-remote @% ns-name func-name params cb call-options)
                                      target-conns))]
         (case (grouping-results* ns-name func-name params)
           :single (first call-results)
@@ -142,9 +142,13 @@
           :map (into {} (map vector target-servers call-results))))))
   (close [this]
     (zk/close zk-conn)
-    (doseq [s (vals @slacker-clients)] (close s))
+    (doseq [s (vals @slacker-clients)]
+      (slacker.client/close-slackerc s))
     (reset! slacker-clients {})
     (reset! slacker-ns-servers {}))
+  (ping [this]
+    (doseq [c (vals @slacker-clients)]
+      (ping c)))
   (inspect [this cmd args]
     (case cmd
       :functions
@@ -185,10 +189,12 @@
                       Note that if you use :vector or :map, you will break default behavior of
                       the function"
 
-  [cluster-name zk-server & {:keys [zk-root grouping grouping-results]
+  [cluster-name zk-server & {:keys [zk-root grouping grouping-results
+                                    ping-interval]
                              :or {zk-root "/slacker/cluster"
                                   grouping :random
-                                  grouping-results :single}
+                                  grouping-results :single
+                                  ping-interval 0}
                              :as options}]
   (delay
    (let [zk-conn (zk/connect zk-server)
