@@ -2,6 +2,7 @@
   :description "Cluster support for slacker"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :url "https://github.com/sunng87/slacker-cluster"
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [slacker "0.11.0-SNAPSHOT"]
                  [zookeeper-clj "0.9.3"
