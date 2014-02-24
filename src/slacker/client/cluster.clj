@@ -42,6 +42,7 @@
           selected-servers (case grouped-servers
                              :all servers
                              :random [(rand-nth servers)]
+                             :first [(first servers)]
                              (if (sequential? grouped-servers)
                                grouped-servers
                                (vector grouped-servers)))]
@@ -176,6 +177,7 @@
   * grouping: specify how the client select servers to call,
               this allows one or more servers to be called.
               possible values:
+                * `:first` always choose the first server available
                 * `:random` choose a server by random (default)
                 * `:all` call function on all servers
                 * `(fn [ns fname params servers])` specify a function to choose.
