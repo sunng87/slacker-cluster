@@ -59,7 +59,7 @@
 
 (defn- clients-callback [e sc]
   (case (:event-type e)
-    :NodeChildrenChanged (refresh-all-servers sc) ;;TODO
+    :NodeChildrenChanged (refresh-all-servers sc)
     nil))
 
 (defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
@@ -119,8 +119,8 @@
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (doall (map #(sync-call-remote @% ns-name func-name params call-options)
-                                     target-conns))]
+      (let [call-results (pmap #(sync-call-remote @% ns-name func-name params call-options)
+                               target-conns)]
         (case (grouping-results* ns-name func-name params)
           :single (first call-results)
           :vector (vec call-results)
@@ -135,8 +135,8 @@
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (doall (map #(async-call-remote @% ns-name func-name params cb call-options)
-                                     target-conns))]
+      (let [call-results (pmap #(async-call-remote @% ns-name func-name params cb call-options)
+                                    target-conns)]
         (case (grouping-results* ns-name func-name params)
           :single (first call-results)
           :vector (vec call-results)
