@@ -20,7 +20,7 @@ instance in your system.
 
 ## Leiningen
 
-`[slacker/slacker-cluster "0.10.5"]`
+![latest version on clojars](https://clojars.org/slacker/slacker-cluster/latest-version.svg)
 
 ## Cluster Enabled Slacker Server
 
