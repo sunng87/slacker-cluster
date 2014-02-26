@@ -2,6 +2,12 @@
 
 ![slacker](http://i.imgur.com/Jd02f.png)
 
+This is the cluster module for
+[slacker](https://github.com/sunng87/slacker), a clojure RPC
+framework.
+
+[![Build Status](https://travis-ci.org/sunng87/slacker-cluster.png?branch=master)](https://travis-ci.org/sunng87/slacker-cluster)
+
 With help from ZooKeeper, slacker has a solution for high
 availability and load balancing. You can have several slacker servers
 in a cluster serving functions. And the clustered slacker client will
