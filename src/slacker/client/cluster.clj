@@ -6,7 +6,8 @@
   (:use [slacker.serialization])
   (:use [clojure.string :only [split]])
   (:require [clojure.tools.logging :as logging])
-  (:use [slingshot.slingshot :only [throw+]]))
+  (:use [slingshot.slingshot :only [throw+]])
+  (:import [clojure.lang IDeref IPending IBlockingDeref]))
 
 (defprotocol CoordinatorAwareClient
   (refresh-associated-servers [this ns])
@@ -72,6 +73,57 @@
     (constantly f)
     f))
 
+(defn group-call-results [grouping-results
+                          grouping-exceptions
+                          servers
+                          call-results]
+  (let [call-results (map #(assoc %1 :server %2) call-results servers)]
+    (doseq [r (filter :cause call-results)]
+      (logging/warn (str "error calling "
+                         (:server r)
+                         ". Error: "
+                         (:cause r))))
+    (cond
+     ;; there's exception occured and we don't want to ignore
+     (and
+      (every? :cause call-results)
+      (= grouping-exceptions :all))
+     {:cause {:code :failed
+              :nested (map :cause call-results)}}
+
+     (and
+      (some :cause call-results)
+      (= grouping-exceptions :any))
+     {:cause {:code :failed
+              :nested (map :cause (filter :cause call-results))}}
+
+     :else
+     (let [valid-results (remove :cause call-results)]
+       {:result (case (grouping-results)
+                  :single (:result (first valid-results))
+                  :vector (mapv :result valid-results)
+                  :map (into {} (map #(vector (:server %) (:result %))
+                                     valid-results)))}))))
+
+(deftype GroupedPromise [grouping-fn promises]
+  IDeref
+  (deref [_]
+    (let [call-results (mapv deref promises)]
+      (grouping-fn call-results)))
+  IBlockingDeref
+  (deref [this timeout timeout-var]
+    (let [time-start (System/currentTimeMillis)]
+      (loop [prmss promises]
+        (deref (first prmss) timeout nil)
+        (when (< (- (System/currentTimeMillis) time-start) timeout)
+          (recur (rest prmss)))))
+    (if (every? realized? promises)
+      (deref this)
+      timeout-var))
+  IPending
+  (isRealized [_]
+    (every? realized? promises)))
+
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
      slacker-clients slacker-ns-servers
@@ -111,63 +163,52 @@
   (sync-call-remote [this ns-name func-name params call-options]
     (when (nil? ((get-ns-mappings this) ns-name))
       (refresh-associated-servers this ns-name))
-    (let [grouping* (to-fn (:grouping call-options (:grouping options)))
-          grouping-results* (to-fn (:grouping-results call-options (:grouping-results options)))
+    (let [grouping* (partial (to-fn (:grouping call-options (:grouping options)))
+                             ns-name func-name params)
+          grouping-results* (partial (to-fn (:grouping-results call-options (:grouping-results options)))
+                                     ns-name func-name params)
           grouping-exceptions* (or (:grouping-exceptions call-options)
                                    (:grouping-exceptions options))
-          target-servers (find-server slacker-ns-servers ns-name
-                                     (partial grouping* ns-name func-name params))
+          target-servers (find-server slacker-ns-servers ns-name grouping*)
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (pmap #(assoc (sync-call-remote @%1 ns-name func-name params call-options)
-                                  :server %2)
-                               target-conns target-servers)]
-        (doseq [r (filter :cause call-results)]
-          (logging/warn (str "error calling "
-                             (:server r)
-                             ". Error: "
-                             (:cause r))))
-        (cond
-         ;; there's exception occured and we don't want to ignore
-         (and
-          (every? :cause call-results)
-          (= grouping-exceptions* :all))
-         {:cause {:code :failed
-                  :nested call-results}}
+      (let [call-results (pmap #(assoc (sync-call-remote @% ns-name func-name params call-options))
+                               target-conns)]
 
-         (and
-          (some :cause call-results)
-          (= grouping-exceptions* :any))
-         {:cause {:code :failed
-                  :nested (filter :cause call-results)}}
-
-         :else
-         (let [valid-results (remove :cause call-results)]
-           {:result (case (grouping-results* ns-name func-name params)
-                      :single (:result (first valid-results))
-                      :vector (mapv :result valid-results)
-                      :map (into {} (map #(vector (:server %) (:result %))
-                                         valid-results)))})))))
+        (group-call-results grouping-results* grouping-exceptions*
+                            target-servers call-results))))
 
   (async-call-remote [this ns-name func-name params cb call-options]
     (when (nil? ((get-ns-mappings this) ns-name))
       (refresh-associated-servers this ns-name))
-    (let [grouping* (to-fn (:grouping call-options
-                                      (:grouping options)))
-          grouping-results* (to-fn (:grouping-results call-options
-                                                      (:grouping-results options)))
+    (let [grouping* (partial (to-fn (:grouping call-options (:grouping options)))
+                             ns-name func-name params)
+          grouping-results* (partial (to-fn (:grouping-results call-options
+                                                               (:grouping-results options)))
+                                     ns-name func-name params)
+          grouping-exceptions* (:grouping-exceptions call-options
+                                                     (:grouping-exceptions options))
           target-servers (find-server slacker-ns-servers ns-name
                                      (partial grouping* ns-name func-name params))
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (pmap #(async-call-remote @% ns-name func-name params cb call-options)
-                                    target-conns)]
-        (case (grouping-results* ns-name func-name params)
-          :single (first call-results)
-          :vector (vec call-results)
-          :map (into {} (map vector target-servers call-results))))))
+      (let [call-prms (mapv
+                       #(async-call-remote @%1
+                                           ns-name
+                                           func-name
+                                           params
+                                           (fn [result]
+                                             (let [r (assoc result :server %2)]
+                                               (cb r)))
+                                           call-options)
+                       target-conns target-servers)]
+        (GroupedPromise. (partial group-call-results
+                                  grouping-results*
+                                  grouping-exceptions*
+                                  target-servers)
+                         call-prms))))
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)]
