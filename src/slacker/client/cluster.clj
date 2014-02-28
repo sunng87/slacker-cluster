@@ -180,9 +180,12 @@
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (pmap #(assoc (sync-call-remote @% ns-name func-name params call-options))
+      (let [call-results (pmap #(sync-call-remote @%
+                                                  ns-name
+                                                  func-name
+                                                  params
+                                                  call-options)
                                target-conns)]
-
         (group-call-results grouping-results* grouping-exceptions*
                             target-servers call-results))))
 
@@ -194,24 +197,27 @@
                                   ns-name func-name params)
           target-servers (find-server slacker-ns-servers ns-name
                                      (partial grouping* ns-name func-name params))
-          target-conns (map @slacker-clients target-servers)]
+          target-conns (map @slacker-clients target-servers)
+          grouping-fn (partial group-call-results
+                               grouping-results*
+                               grouping-exceptions*
+                               target-servers)
+          cb-results (atom [])
+          sys-cb (fn [result]
+                   (when (= (count (swap! cb-results conj result))
+                            (count target-servers))
+                     (cb (grouping-fn @cb-results))))]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
       (let [call-prms (mapv
-                       #(async-call-remote @%1
+                       #(async-call-remote @%
                                            ns-name
                                            func-name
                                            params
-                                           (fn [result]
-                                             (let [r (assoc result :server %2)]
-                                               (cb r)))
+                                           sys-cb
                                            call-options)
-                       target-conns target-servers)]
-        (GroupedPromise. (partial group-call-results
-                                  grouping-results*
-                                  grouping-exceptions*
-                                  target-servers)
-                         call-prms))))
+                       target-conns)]
+        (GroupedPromise. grouping-fn call-prms))))
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)]
