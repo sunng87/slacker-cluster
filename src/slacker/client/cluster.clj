@@ -75,7 +75,6 @@
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
      slacker-clients slacker-ns-servers
-     grouping grouping-results
      options]
   CoordinatorAwareClient
   (refresh-associated-servers [this nsname]
@@ -112,24 +111,52 @@
   (sync-call-remote [this ns-name func-name params call-options]
     (when (nil? ((get-ns-mappings this) ns-name))
       (refresh-associated-servers this ns-name))
-    (let [grouping* (to-fn (:grouping call-options grouping))
-          grouping-results* (to-fn (:grouping-results call-options grouping-results))
+    (let [grouping* (to-fn (:grouping call-options (:grouping options)))
+          grouping-results* (to-fn (:grouping-results call-options (:grouping-results options)))
+          grouping-exceptions* (or (:grouping-exceptions call-options)
+                                   (:grouping-exceptions options))
           target-servers (find-server slacker-ns-servers ns-name
                                      (partial grouping* ns-name func-name params))
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
                           func-name " on " target-servers))
-      (let [call-results (pmap #(sync-call-remote @% ns-name func-name params call-options)
-                               target-conns)]
-        (case (grouping-results* ns-name func-name params)
-          :single (first call-results)
-          :vector (vec call-results)
-          :map (into {} (map vector target-servers call-results))))))
+      (let [call-results (pmap #(assoc (sync-call-remote @%1 ns-name func-name params call-options)
+                                  :server %2)
+                               target-conns target-servers)]
+        (doseq [r (filter :cause call-results)]
+          (logging/warn (str "error calling "
+                             (:server r)
+                             ". Error: "
+                             (:cause r))))
+        (cond
+         ;; there's exception occured and we don't want to ignore
+         (and
+          (every? :cause call-results)
+          (= grouping-exceptions* :all))
+         {:cause {:code :failed
+                  :nested call-results}}
+
+         (and
+          (some :cause call-results)
+          (= grouping-exceptions* :any))
+         {:cause {:code :failed
+                  :nested (filter :cause call-results)}}
+
+         :else
+         (let [valid-results (remove :cause call-results)]
+           {:result (case (grouping-results* ns-name func-name params)
+                      :single (:result (first valid-results))
+                      :vector (mapv :result valid-results)
+                      :map (into {} (map #(vector (:server %) (:result %))
+                                         valid-results)))})))))
+
   (async-call-remote [this ns-name func-name params cb call-options]
     (when (nil? ((get-ns-mappings this) ns-name))
       (refresh-associated-servers this ns-name))
-    (let [grouping* (to-fn (:grouping call-options grouping))
-          grouping-results* (to-fn (:grouping-results call-options grouping-results))
+    (let [grouping* (to-fn (:grouping call-options
+                                      (:grouping options)))
+          grouping-results* (to-fn (:grouping-results call-options
+                                                      (:grouping-results options)))
           target-servers (find-server slacker-ns-servers ns-name
                                      (partial grouping* ns-name func-name params))
           target-conns (map @slacker-clients target-servers)]
@@ -151,15 +178,16 @@
     (doseq [c (vals @slacker-clients)]
       (ping c)))
   (inspect [this cmd args]
-    (case cmd
-      :functions
-      (let [nsname (or args "")
-            ns-root (utils/zk-path (:zk-root options) cluster-name
-                                   "functions" nsname)
-            fnames (or (zk/children zk-conn ns-root) [])]
-        (map #(str nsname "/" %) fnames))
-      :meta (meta-data-from-zk zk-conn (:zk-root options)
-                               cluster-name args))))
+    {:result
+     (case cmd
+       :functions
+       (let [nsname (or args "")
+             ns-root (utils/zk-path (:zk-root options) cluster-name
+                                    "functions" nsname)
+             fnames (or (zk/children zk-conn ns-root) [])]
+         (map #(str nsname "/" %) fnames))
+       :meta (meta-data-from-zk zk-conn (:zk-root options)
+                                cluster-name args))}))
 
 (defn- on-zk-events [e sc]
   (if (.endsWith ^String (:path e) "servers")
@@ -189,13 +217,19 @@
                       * `:map` returns values from all servers as a map, server host:port as key
                       * `(fn [ns fname params])` a function that returns keywords above
                       Note that if you use :vector or :map, you will break default behavior of
-                      the function"
+                      the function
+  * grouping-exception: how to deal with the exceptions when calling functions
+                        on multiple instance.
+                        * `:all` the API throws exception when exception
+                                   is thrown on every instance
+                        * `:any` the API throws exception when any instance throws exception"
 
   [cluster-name zk-server & {:keys [zk-root grouping grouping-results
-                                    ping-interval]
+                                    grouping-exceptions ping-interval]
                              :or {zk-root "/slacker/cluster"
                                   grouping :random
                                   grouping-results :single
+                                  grouping-exceptions :all
                                   ping-interval 0}
                              :as options}]
   (delay
@@ -205,8 +239,11 @@
          sc (ClusterEnabledSlackerClient.
              cluster-name zk-conn
              slacker-clients slacker-ns-servers
-             grouping grouping-results
-             (assoc options :zk-root zk-root))]
+             (assoc options
+               :zk-root zk-root
+               :grouping grouping
+               :grouping-results grouping-results
+               :grouping-exceptions grouping-exceptions))]
      (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
      ;; watch 'servers' node
      (zk/children zk-conn
