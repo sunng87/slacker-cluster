@@ -124,6 +124,16 @@
   (isRealized [_]
     (every? realized? promises)))
 
+(defn- parse-grouping-options [options call-options
+                               ns-name func-name params]
+  (vector
+   (partial (to-fn (:grouping call-options (:grouping options)))
+            ns-name func-name params)
+   (partial (to-fn (:grouping-results call-options (:grouping-results options)))
+            ns-name func-name params)
+   (or (:grouping-exceptions call-options)
+       (:grouping-exceptions options))))
+
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
      slacker-clients slacker-ns-servers
@@ -163,12 +173,9 @@
   (sync-call-remote [this ns-name func-name params call-options]
     (when (nil? ((get-ns-mappings this) ns-name))
       (refresh-associated-servers this ns-name))
-    (let [grouping* (partial (to-fn (:grouping call-options (:grouping options)))
-                             ns-name func-name params)
-          grouping-results* (partial (to-fn (:grouping-results call-options (:grouping-results options)))
-                                     ns-name func-name params)
-          grouping-exceptions* (or (:grouping-exceptions call-options)
-                                   (:grouping-exceptions options))
+    (let [[grouping* grouping-results* grouping-exceptions*]
+          (parse-grouping-options options call-options
+                                  ns-name func-name params)
           target-servers (find-server slacker-ns-servers ns-name grouping*)
           target-conns (map @slacker-clients target-servers)]
       (logging/debug (str "calling " ns-name "/"
@@ -182,13 +189,9 @@
   (async-call-remote [this ns-name func-name params cb call-options]
     (when (nil? ((get-ns-mappings this) ns-name))
       (refresh-associated-servers this ns-name))
-    (let [grouping* (partial (to-fn (:grouping call-options (:grouping options)))
-                             ns-name func-name params)
-          grouping-results* (partial (to-fn (:grouping-results call-options
-                                                               (:grouping-results options)))
-                                     ns-name func-name params)
-          grouping-exceptions* (:grouping-exceptions call-options
-                                                     (:grouping-exceptions options))
+    (let [[grouping* grouping-results* grouping-exceptions*]
+          (parse-grouping-options options call-options
+                                  ns-name func-name params)
           target-servers (find-server slacker-ns-servers ns-name
                                      (partial grouping* ns-name func-name params))
           target-conns (map @slacker-clients target-servers)]
