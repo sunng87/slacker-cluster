@@ -6,7 +6,6 @@
   (:use [slacker.serialization])
   (:use [clojure.string :only [split]])
   (:require [clojure.tools.logging :as logging])
-  (:use [slingshot.slingshot :only [throw+]])
   (:import [clojure.lang IDeref IPending IBlockingDeref]))
 
 (defprotocol CoordinatorAwareClient
@@ -49,8 +48,8 @@
                                (vector grouped-servers)))]
       (if-not (empty? selected-servers)
         selected-servers
-        (throw+ {:code :not-found})))
-    (throw+ {:code :not-found})))
+        []))
+    []))
 
 (defn- ns-callback [e sc nsname]
   (case (:event-type e)
@@ -178,16 +177,19 @@
                                   ns-name func-name params)
           target-servers (find-server slacker-ns-servers ns-name grouping*)
           target-conns (map @slacker-clients target-servers)]
-      (logging/debug (str "calling " ns-name "/"
-                          func-name " on " target-servers))
-      (let [call-results (pmap #(sync-call-remote @%
-                                                  ns-name
-                                                  func-name
-                                                  params
-                                                  call-options)
-                               target-conns)]
-        (group-call-results grouping-results* grouping-exceptions*
-                            target-servers call-results))))
+      (if (empty? target-conns)
+        {:cause {:error :not-found}}
+        (do
+          (logging/debug (str "calling " ns-name "/"
+                              func-name " on " target-servers))
+          (let [call-results (pmap #(sync-call-remote @%
+                                                      ns-name
+                                                      func-name
+                                                      params
+                                                      call-options)
+                                   target-conns)]
+            (group-call-results grouping-results* grouping-exceptions*
+                                target-servers call-results))))))
 
   (async-call-remote [this ns-name func-name params cb call-options]
     (when (nil? ((get-ns-mappings this) ns-name))
@@ -207,17 +209,20 @@
                    (when (= (count (swap! cb-results conj result))
                             (count target-servers))
                      (cb (grouping-fn @cb-results))))]
-      (logging/debug (str "calling " ns-name "/"
-                          func-name " on " target-servers))
-      (let [call-prms (mapv
-                       #(async-call-remote @%
-                                           ns-name
-                                           func-name
-                                           params
-                                           sys-cb
-                                           call-options)
-                       target-conns)]
-        (GroupedPromise. grouping-fn call-prms))))
+      (if (empty? target-conns)
+        (doto (promise) (deliver {:cause {:error :not-found}}))
+        (do
+          (logging/debug (str "calling " ns-name "/"
+                              func-name " on " target-servers))
+          (let [call-prms (mapv
+                           #(async-call-remote @%
+                                               ns-name
+                                               func-name
+                                               params
+                                               sys-cb
+                                               call-options)
+                           target-conns)]
+            (GroupedPromise. grouping-fn call-prms))))))
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)]
