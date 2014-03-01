@@ -6,7 +6,7 @@
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [slacker "0.11.0-SNAPSHOT"]
                  [zookeeper-clj "0.9.3"
-                  :exclusions [jline junit]]
+                  :exclusions [jline junit log4j]]
                  [org.clojure/tools.logging "0.2.6"]]
   :profiles {:example {:source-paths ["examples"]}
              :1.3 {:dependencies [org.clojure/clojure "1.3.0"]}}
