@@ -113,15 +113,19 @@
   (deref [this timeout timeout-var]
     (let [time-start (System/currentTimeMillis)]
       (loop [prmss promises]
-        (deref (first prmss) timeout nil)
-        (when (< (- (System/currentTimeMillis) time-start) timeout)
-          (recur (rest prmss)))))
+        (when (not-empty prmss)
+          (deref (first prmss) timeout nil)
+          (when (< (- (System/currentTimeMillis) time-start) timeout)
+            (recur (rest prmss))))))
     (if (every? realized? promises)
       (deref this)
       timeout-var))
   IPending
   (isRealized [_]
     (every? realized? promises)))
+
+(defn grouped-promise [grouping-fn promises]
+  (GroupedPromise. grouping-fn promises))
 
 (defn- parse-grouping-options [options call-options
                                ns-name func-name params]
@@ -224,7 +228,7 @@
                                                sys-cb
                                                call-options)
                            target-conns)]
-            (GroupedPromise. grouping-fn call-prms))))))
+            (grouped-promise grouping-fn call-prms))))))
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)]
