@@ -142,7 +142,8 @@
     (let [node-path (utils/zk-path (:zk-root options)
                                    cluster-name "namespaces" nsname)
           servers (zk/children zk-conn node-path
-                               :watch? true)]
+                               :watch? true)
+          servers (or servers [])]
       ;; update servers for this namespace
       (swap! slacker-ns-servers assoc nsname servers)
       ;; establish connection if the server is not connected
@@ -154,7 +155,8 @@
       servers))
   (refresh-all-servers [this]
     (let [node-path (utils/zk-path (:zk-root options) cluster-name "servers")
-          servers (into #{} (zk/children zk-conn node-path :watch? true))]
+          servers (into #{} (zk/children zk-conn node-path :watch? true))
+          servers (or servers [])]
       ;; close connection to offline servers, remove from slacker-clients
       (doseq [s (keys @slacker-clients)]
         (when-not (contains? servers s)
