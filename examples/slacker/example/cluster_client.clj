@@ -21,8 +21,8 @@
   :grouping :all
   :grouping-results :map
   :async? true
-  :callback (fn [r]
-              (println (:result r))))
+  :callback (fn [e r]
+              (println r)))
 
 (defn -main [& args]
   (binding [*debug* true]
