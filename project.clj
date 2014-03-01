@@ -9,6 +9,7 @@
                   :exclusions [jline junit log4j]]
                  [org.clojure/tools.logging "0.2.6"]]
   :profiles {:example {:source-paths ["examples"]}
+             :dev {:dependencies [[log4j "1.2.17"]]}
              :1.3 {:dependencies [org.clojure/clojure "1.3.0"]}}
   :plugins [[codox "0.6.7"]]
   :global-vars {*warn-on-reflection* true}
