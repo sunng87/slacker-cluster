@@ -23,6 +23,10 @@
 (defn echo [x]
   x)
 
+(defn random-exception [poss]
+  (if (< (rand) poss)
+    (throw (RuntimeException. "Random Exception"))))
+
 (defn long-running []
   (Thread/sleep 10000)
   true)

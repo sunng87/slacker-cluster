@@ -15,6 +15,14 @@
   :remote-ns "slacker.example.api"
   :grouping :all
   :grouping-results :vector)
+(defn-remote sc async-timestamp
+  :remote-name "timestamp"
+  :remote-ns "slacker.example.api"
+  :grouping :all
+  :grouping-results :map
+  :async? true
+  :callback (fn [e r]
+              (println r)))
 
 (defn -main [& args]
   (binding [*debug* true]
@@ -25,6 +33,7 @@
   (dotimes [_ 100] (timestamp))
 
   (println (all-timestamp))
+  (async-timestamp)
 
   (close-slackerc sc)
   (System/exit 0))

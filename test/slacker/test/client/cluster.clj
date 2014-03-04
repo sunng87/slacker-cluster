@@ -2,53 +2,52 @@
   (:use [clojure.test])
   (:use [slacker.client common cluster])
   (:use [slacker.serialization])
-  (:use [slacker.utils :only [zk-path]])
-  (:require [zookeeper :as zk]))
+  (:use [slacker.utils :only [zk-path]]))
 
-(deftest test-clustered-client
-  (let [zk-root "/slacker/cluster/"
-        cluster-name "test-cluster"
-        zk-path! (partial zk-path zk-root cluster-name)
-        test-server "127.0.0.1:2104"
-        test-server2 "127.0.0.1:2105"
-        zk-server "127.0.0.1:2181"
-        zk-verify-conn (zk/connect zk-server)
-        test-ns "test-ns"
-        sc (clustered-slackerc cluster-name zk-server
-                               :zk-root zk-root)]
-    (zk/create-all zk-verify-conn (zk-path! "servers"
-                                            test-server))
-    (zk/create-all zk-verify-conn
-                   (zk-path! "namespaces"
-                             test-ns
-                             test-server))
-    (doseq [f (map #(str test-ns "/" %) ["hello" "world"])]
-      (zk/create-all zk-verify-conn (zk-path! "functions" f)
-                     :persistent? true)
-      (zk/set-data zk-verify-conn
-                   (zk-path! "functions" f)
-                   (serialize :clj {:name f :doc "test function"} :bytes)
-                   (:version (zk/exists
-                              zk-verify-conn
-                              (zk-path! "functions" f)))))
-    ;; your have to start server on port 2104 and 2105
-    (is (= ["127.0.0.1:2104"] (refresh-associated-servers sc test-ns)))
+(deftest test-group-promise []
+  (let [prmss (take 5 (repeatedly promise))
+        gprm (grouped-promise identity prmss)]
+    (dorun (map #(deliver % true) prmss))
+    (is (every? true? @gprm)))
+  (let [prmss (take 5 (repeatedly promise))
+        gprm (grouped-promise identity prmss)]
+    (is (= 1 (deref gprm 2 1))))
+  (let [prmss (take 5 (repeatedly promise))
+        gprm (grouped-promise identity prmss)]
+    (future
+      (dorun (map #(do
+                     (deliver % true)
+                     (Thread/sleep 500)) prmss)))
+    (is (every? true? (deref gprm 3000 [false])))))
 
-    (is (= {:name (str test-ns "/world") :doc "test function"}
-           (inspect sc :meta (str test-ns "/world"))))
-    
-    (zk/create zk-verify-conn (zk-path! "servers" test-server2))
-    (zk/create zk-verify-conn
-               (zk-path! "namespaces" test-ns test-server2))
-
-
-    (Thread/sleep 1000) ;; wait for watchers
-    (is (= [test-server test-server2] ((get-ns-mappings sc) test-ns)))
-    (is (= 2 (count (get-connected-servers sc))))
-    (is (= 2 (count (inspect sc :functions test-ns))))
-
-    (close sc)
-    (zk/delete-all zk-verify-conn (zk-path!))
-    (zk/close zk-verify-conn)))
-
-
+(deftest test-group-call-results
+  (is (:cause (group-call-results (constantly :vector)
+                                  :all
+                                  ["1" "2"]
+                                  [{:cause {:error true}}
+                                   {:cause {:error true}}])))
+  (let [r (group-call-results (constantly :vector)
+                              :all
+                              ["1" "2"]
+                              [{:cause {:error true}}
+                               {}])]
+    (is (not (:cause r))
+        (= 1 (count (:result r)))))
+  (is (:cause (group-call-results (constantly :vector)
+                                  :any
+                                  ["1" "2"]
+                                  [{:cause {:error true}}
+                                   {:result 1}])))
+  (is (count
+       (:result
+        (group-call-results (constantly :vector)
+                            :any
+                            ["1" "2"]
+                            [{:result 1}
+                             {:result 2}]))))
+  (let [r (group-call-results (constantly :map)
+                              :any
+                              ["1" "2"]
+                              [{:result 1}
+                               {:result 2}])]
+    (is (= 1 (-> r :result (get "1"))))))

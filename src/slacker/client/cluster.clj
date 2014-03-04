@@ -6,7 +6,7 @@
   (:use [slacker.serialization])
   (:use [clojure.string :only [split]])
   (:require [clojure.tools.logging :as logging])
-  (:use [slingshot.slingshot :only [throw+]]))
+  (:import [clojure.lang IDeref IPending IBlockingDeref]))
 
 (defprotocol CoordinatorAwareClient
   (refresh-associated-servers [this ns])
@@ -24,20 +24,14 @@
         remote-ns (if remote-ns-declared
                     (first (split fname-str #"/" 2))
                     remote-ns)]
-    `(do
-       (when (nil? ((get-ns-mappings ~sc) ~remote-ns))
-         (refresh-associated-servers ~sc ~remote-ns))
-       (slacker.client/defn-remote ~sc ~fname ~@options))))
+    `(slacker.client/defn-remote ~sc ~fname ~@options)))
 
 (defn use-remote
   "cluster enabled use-remote"
   ([sc-sym] (use-remote sc-sym (ns-name *ns*)))
   ([sc-sym rns & options]
      (let [sc @(resolve sc-sym)]
-       (do
-         (when (nil? ((get-ns-mappings sc) (str rns)))
-           (refresh-associated-servers sc (str rns)))
-         (apply slacker.client/use-remote sc-sym rns options)))))
+       (apply slacker.client/use-remote sc-sym rns options))))
 
 (defn- create-slackerc [connection-info & options]
   (apply slacker.client/slackerc connection-info options))
@@ -48,13 +42,14 @@
           selected-servers (case grouped-servers
                              :all servers
                              :random [(rand-nth servers)]
+                             :first [(first servers)]
                              (if (sequential? grouped-servers)
                                grouped-servers
                                (vector grouped-servers)))]
       (if-not (empty? selected-servers)
         selected-servers
-        (throw+ {:code :not-found})))
-    (throw+ {:code :not-found})))
+        []))
+    []))
 
 (defn- ns-callback [e sc nsname]
   (case (:event-type e)
@@ -64,7 +59,7 @@
 
 (defn- clients-callback [e sc]
   (case (:event-type e)
-    :NodeChildrenChanged (refresh-all-servers sc) ;;TODO
+    :NodeChildrenChanged (refresh-all-servers sc)
     nil))
 
 (defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
@@ -77,17 +72,82 @@
     (constantly f)
     f))
 
+(defn group-call-results [grouping-results
+                          grouping-exceptions
+                          servers
+                          call-results]
+  (let [call-results (map #(assoc %1 :server %2) call-results servers)]
+    (doseq [r (filter :cause call-results)]
+      (logging/warn (str "error calling "
+                         (:server r)
+                         ". Error: "
+                         (:cause r))))
+    (cond
+     ;; there's exception occured and we don't want to ignore
+     (and
+      (every? :cause call-results)
+      (= grouping-exceptions :all))
+     {:cause {:code :failed
+              :nested (map :cause call-results)}}
+
+     (and
+      (some :cause call-results)
+      (= grouping-exceptions :any))
+     {:cause {:code :failed
+              :nested (map :cause (filter :cause call-results))}}
+
+     :else
+     (let [valid-results (remove :cause call-results)]
+       {:result (case (grouping-results)
+                  :single (:result (first valid-results))
+                  :vector (mapv :result valid-results)
+                  :map (into {} (map #(vector (:server %) (:result %))
+                                     valid-results)))}))))
+
+(deftype GroupedPromise [grouping-fn promises]
+  IDeref
+  (deref [_]
+    (let [call-results (mapv deref promises)]
+      (grouping-fn call-results)))
+  IBlockingDeref
+  (deref [this timeout timeout-var]
+    (let [time-start (System/currentTimeMillis)]
+      (loop [prmss promises]
+        (when (not-empty prmss)
+          (deref (first prmss) timeout nil)
+          (when (< (- (System/currentTimeMillis) time-start) timeout)
+            (recur (rest prmss))))))
+    (if (every? realized? promises)
+      (deref this)
+      timeout-var))
+  IPending
+  (isRealized [_]
+    (every? realized? promises)))
+
+(defn grouped-promise [grouping-fn promises]
+  (GroupedPromise. grouping-fn promises))
+
+(defn- parse-grouping-options [options call-options
+                               ns-name func-name params]
+  (vector
+   (partial (to-fn (:grouping call-options (:grouping options)))
+            ns-name func-name params)
+   (partial (to-fn (:grouping-results call-options (:grouping-results options)))
+            ns-name func-name params)
+   (or (:grouping-exceptions call-options)
+       (:grouping-exceptions options))))
+
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
      slacker-clients slacker-ns-servers
-     grouping grouping-results
      options]
   CoordinatorAwareClient
   (refresh-associated-servers [this nsname]
     (let [node-path (utils/zk-path (:zk-root options)
                                    cluster-name "namespaces" nsname)
           servers (zk/children zk-conn node-path
-                               :watch? true)]
+                               :watch? true)
+          servers (or servers [])]
       ;; update servers for this namespace
       (swap! slacker-ns-servers assoc nsname servers)
       ;; establish connection if the server is not connected
@@ -99,12 +159,13 @@
       servers))
   (refresh-all-servers [this]
     (let [node-path (utils/zk-path (:zk-root options) cluster-name "servers")
-          servers (into #{} (zk/children zk-conn node-path :watch? true))]
+          servers (into #{} (zk/children zk-conn node-path :watch? true))
+          servers (or servers [])]
       ;; close connection to offline servers, remove from slacker-clients
       (doseq [s (keys @slacker-clients)]
         (when-not (contains? servers s)
           (logging/info (str "closing connection of " s))
-          (close (@slacker-clients s))
+          (slacker.client/close-slackerc (@slacker-clients s))
           (swap! slacker-clients dissoc s)))))
   (get-connected-servers [this]
     (keys @slacker-clients))
@@ -115,48 +176,79 @@
 
   SlackerClientProtocol
   (sync-call-remote [this ns-name func-name params call-options]
-    (let [grouping* (to-fn (:grouping call-options grouping))
-          grouping-results* (to-fn (:grouping-results call-options grouping-results))
-          target-servers (find-server slacker-ns-servers ns-name
-                                     (partial grouping* ns-name func-name params))
+    (when (nil? ((get-ns-mappings this) ns-name))
+      (refresh-associated-servers this ns-name))
+    (let [[grouping* grouping-results* grouping-exceptions*]
+          (parse-grouping-options options call-options
+                                  ns-name func-name params)
+          target-servers (find-server slacker-ns-servers ns-name grouping*)
           target-conns (map @slacker-clients target-servers)]
-      (logging/debug (str "calling " ns-name "/"
-                          func-name " on " target-servers))
-      (let [call-results (doall (map #(sync-call-remote % ns-name func-name params call-options)
-                                     target-conns))]
-        (case (grouping-results* ns-name func-name params)
-          :single (first call-results)
-          :vector (vec call-results)
-          :map (into {} (map vector target-servers call-results))))))
+      (if (empty? target-conns)
+        {:cause {:error :not-found}}
+        (do
+          (logging/debug (str "calling " ns-name "/"
+                              func-name " on " target-servers))
+          (let [call-results (pmap #(sync-call-remote @%
+                                                      ns-name
+                                                      func-name
+                                                      params
+                                                      call-options)
+                                   target-conns)]
+            (group-call-results grouping-results* grouping-exceptions*
+                                target-servers call-results))))))
+
   (async-call-remote [this ns-name func-name params cb call-options]
-    (let [grouping* (to-fn (:grouping call-options grouping))
-          grouping-results* (to-fn (:grouping-results call-options grouping-results))
+    (when (nil? ((get-ns-mappings this) ns-name))
+      (refresh-associated-servers this ns-name))
+    (let [[grouping* grouping-results* grouping-exceptions*]
+          (parse-grouping-options options call-options
+                                  ns-name func-name params)
           target-servers (find-server slacker-ns-servers ns-name
                                      (partial grouping* ns-name func-name params))
-          target-conns (map @slacker-clients target-servers)]
-      (logging/debug (str "calling " ns-name "/"
-                          func-name " on " target-servers))
-      (let [call-results (doall (map #(async-call-remote % ns-name func-name params cb call-options)
-                                     target-conns))]
-        (case (grouping-results* ns-name func-name params)
-          :single (first call-results)
-          :vector (vec call-results)
-          :map (into {} (map vector target-servers call-results))))))
+          target-conns (map @slacker-clients target-servers)
+          grouping-fn (partial group-call-results
+                               grouping-results*
+                               grouping-exceptions*
+                               target-servers)
+          cb-results (atom [])
+          sys-cb (fn [result]
+                   (when (= (count (swap! cb-results conj result))
+                            (count target-servers))
+                     (cb (grouping-fn @cb-results))))]
+      (if (empty? target-conns)
+        (doto (promise) (deliver {:cause {:error :not-found}}))
+        (do
+          (logging/debug (str "calling " ns-name "/"
+                              func-name " on " target-servers))
+          (let [call-prms (mapv
+                           #(async-call-remote @%
+                                               ns-name
+                                               func-name
+                                               params
+                                               sys-cb
+                                               call-options)
+                           target-conns)]
+            (grouped-promise grouping-fn call-prms))))))
   (close [this]
     (zk/close zk-conn)
-    (doseq [s (vals @slacker-clients)] (close s))
+    (doseq [s (vals @slacker-clients)]
+      (slacker.client/close-slackerc s))
     (reset! slacker-clients {})
     (reset! slacker-ns-servers {}))
+  (ping [this]
+    (doseq [c (vals @slacker-clients)]
+      (ping c)))
   (inspect [this cmd args]
-    (case cmd
-      :functions
-      (let [nsname (or args "")
-            ns-root (utils/zk-path (:zk-root options) cluster-name
-                                   "functions" nsname)
-            fnames (or (zk/children zk-conn ns-root) [])]
-        (map #(str nsname "/" %) fnames))
-      :meta (meta-data-from-zk zk-conn (:zk-root options)
-                               cluster-name args))))
+    {:result
+     (case cmd
+       :functions
+       (let [nsname (or args "")
+             ns-root (utils/zk-path (:zk-root options) cluster-name
+                                    "functions" nsname)
+             fnames (or (zk/children zk-conn ns-root) [])]
+         (map #(str nsname "/" %) fnames))
+       :meta (meta-data-from-zk zk-conn (:zk-root options)
+                                cluster-name args))}))
 
 (defn- on-zk-events [e sc]
   (if (.endsWith ^String (:path e) "servers")
@@ -174,6 +266,7 @@
   * grouping: specify how the client select servers to call,
               this allows one or more servers to be called.
               possible values:
+                * `:first` always choose the first server available
                 * `:random` choose a server by random (default)
                 * `:all` call function on all servers
                 * `(fn [ns fname params servers])` specify a function to choose.
@@ -185,25 +278,36 @@
                       * `:map` returns values from all servers as a map, server host:port as key
                       * `(fn [ns fname params])` a function that returns keywords above
                       Note that if you use :vector or :map, you will break default behavior of
-                      the function"
+                      the function
+  * grouping-exception: how to deal with the exceptions when calling functions
+                        on multiple instance.
+                        * `:all` the API throws exception when exception
+                                   is thrown on every instance
+                        * `:any` the API throws exception when any instance throws exception"
 
-  [cluster-name zk-server & {:keys [zk-root grouping grouping-results]
+  [cluster-name zk-server & {:keys [zk-root grouping grouping-results
+                                    grouping-exceptions ping-interval]
                              :or {zk-root "/slacker/cluster"
                                   grouping :random
-                                  grouping-results :single}
+                                  grouping-results :single
+                                  grouping-exceptions :all
+                                  ping-interval 0}
                              :as options}]
-  (let [zk-conn (zk/connect zk-server)
-        slacker-clients (atom {})
-        slacker-ns-servers (atom {})
-        sc (ClusterEnabledSlackerClient.
-            cluster-name zk-conn
-            slacker-clients slacker-ns-servers
-            grouping grouping-results
-            (assoc options :zk-root zk-root))]
-    (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
-    ;; watch 'servers' node
-    (zk/children zk-conn (utils/zk-path zk-root
-                                        cluster-name
-                                        "servers")
-                 :watch? true)
-    sc))
+  (delay
+   (let [zk-conn (zk/connect zk-server)
+         slacker-clients (atom {})
+         slacker-ns-servers (atom {})
+         sc (ClusterEnabledSlackerClient.
+             cluster-name zk-conn
+             slacker-clients slacker-ns-servers
+             (assoc options
+               :zk-root zk-root
+               :grouping grouping
+               :grouping-results grouping-results
+               :grouping-exceptions grouping-exceptions))]
+     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
+     ;; watch 'servers' node
+     (zk/children zk-conn
+                  (utils/zk-path zk-root cluster-name "servers")
+                  :watch? true)
+     sc)))
