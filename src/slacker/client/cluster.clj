@@ -84,9 +84,7 @@
                          (:cause r))))
     (cond
      ;; there's exception occured and we don't want to ignore
-     (and
-      (every? :cause call-results)
-      (= grouping-exceptions :all))
+     (every? :cause call-results)
      {:cause {:code :failed
               :nested (map :cause call-results)}}
 
@@ -94,6 +92,7 @@
       (some :cause call-results)
       (= grouping-exceptions :any))
      {:cause {:code :failed
+              :servers (map :server (filter :cause call-results))
               :nested (map :cause (filter :cause call-results))}}
 
      :else
