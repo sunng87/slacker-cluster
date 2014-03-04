@@ -100,6 +100,17 @@ define how many values to return for the call. Possible values are:
 Note that `:vector` and `:map` would break default behavior of the
 function call, and change return type.
 
+### Grouping exceptions
+
+You can decide whether the client will throw an exception when some of
+remote functions throwing exceptions.
+
+* `:all` default, only throw exception when all remote functions return error
+* `:any` will throw exception when any remote server caused an error
+
+If you choose `:all` but some of servers failed to return, we will
+only return results from servers succeeded.
+
 ### Grouping at function level
 
 You can also define `:grouping` and `:grouping-results` function at
