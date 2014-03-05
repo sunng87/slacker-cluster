@@ -82,12 +82,16 @@
   supply a zookeeper instance and a cluster name to the :cluster option
   to register this server as a node of the cluster."
   [exposed-ns port & options]
-  (apply slacker.server/start-slacker-server exposed-ns port options)
-  (let [{:keys [cluster]} options
+  (let [svr (apply slacker.server/start-slacker-server
+                   exposed-ns
+                   port
+                   options)
+        {:keys [cluster]} options
         exposed-ns (if (coll? exposed-ns) exposed-ns [exposed-ns])
         funcs (apply merge
                      (map slacker.server/ns-funcs exposed-ns))]
     (when-not (nil? cluster)
       (with-zk (zk/connect (:zk cluster))
         (publish-cluster cluster port
-                         (map ns-name exposed-ns) funcs)))))
+                         (map ns-name exposed-ns) funcs)))
+    svr))
