@@ -40,7 +40,7 @@
   (let [cluster-name (cluster :name)
         zk-root (cluster :zk-root "/slacker/cluster/")
         server-node (str (or (cluster :node)
-                             (auto-detect-ip (:zk cluster)))
+                             (auto-detect-ip (first (split (:zk cluster) #","))))
                          ":" port)
         funcs (keys funcs-map)]
     (create-node *zk-conn* (utils/zk-path zk-root cluster-name "servers")
