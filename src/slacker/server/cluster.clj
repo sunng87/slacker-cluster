@@ -6,7 +6,7 @@
   (:require [slacker.utils :as utils])
   (:import java.net.Socket))
 
-(declare ^{:dynamic true} *zk-conn* )
+(declare ^{:dynamic true} *zk-conn*)
 
 (defn- auto-detect-ip
   "detect IP by connecting to zookeeper"
