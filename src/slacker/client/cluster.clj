@@ -49,8 +49,8 @@
                                  (vector grouped-servers)))]
         (if-not (empty? selected-servers)
           selected-servers
-          [])))
-    []))
+          []))
+      [])))
 
 (defn- ns-callback [e sc nsname]
   (case (:event-type e)
