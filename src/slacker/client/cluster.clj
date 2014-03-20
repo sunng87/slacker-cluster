@@ -37,18 +37,19 @@
   (apply slacker.client/slackerc connection-info options))
 
 (defn- find-server [slacker-ns-servers ns-name grouping]
-  (if-let [servers (@slacker-ns-servers ns-name)]
-    (let [grouped-servers (grouping servers)
-          selected-servers (case grouped-servers
-                             :all servers
-                             :random [(rand-nth servers)]
-                             :first [(first servers)]
-                             (if (sequential? grouped-servers)
-                               grouped-servers
-                               (vector grouped-servers)))]
-      (if-not (empty? selected-servers)
-        selected-servers
-        []))
+  (let [servers (@slacker-ns-servers ns-name)]
+    (if-not (empty? servers)
+      (let [grouped-servers (grouping servers)
+            selected-servers (case grouped-servers
+                               :all servers
+                               :random [(rand-nth servers)]
+                               :first [(first servers)]
+                               (if (sequential? grouped-servers)
+                                 grouped-servers
+                                 (vector grouped-servers)))]
+        (if-not (empty? selected-servers)
+          selected-servers
+          [])))
     []))
 
 (defn- ns-callback [e sc nsname]
