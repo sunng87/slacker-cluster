@@ -97,12 +97,16 @@
               :nested (map :cause (filter :cause call-results))}}
 
      :else
-     (let [valid-results (remove :cause call-results)]
-       {:result (case (grouping-results)
+     (let [valid-results (remove :cause call-results)
+           grouping-results-config (grouping-results)]
+       {:result (case grouping-results-config
                   :single (:result (first valid-results))
                   :vector (mapv :result valid-results)
                   :map (into {} (map #(vector (:server %) (:result %))
-                                     valid-results)))}))))
+                                     valid-results))
+                  (if (fn? grouping-results-config)
+                    (grouping-results-config valid-results)
+                    (throw (ex-info "Unsupported grouping-results value"))))}))))
 
 (deftype GroupedPromise [grouping-fn promises]
   IDeref
