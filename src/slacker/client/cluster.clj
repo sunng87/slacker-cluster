@@ -263,6 +263,7 @@
   "create a cluster enalbed slacker client
   options:
   * zk-root: specify the root path in zookeeper
+  * factory: a client factory, default to non-ssl implementation
   * grouping: specify how the client select servers to call,
               this allows one or more servers to be called.
               possible values:
@@ -286,7 +287,8 @@
                         * `:any` the API throws exception when any instance throws exception"
 
   [cluster-name zk-server & {:keys [zk-root grouping grouping-results
-                                    grouping-exceptions ping-interval]
+                                    grouping-exceptions ping-interval
+                                    factory]
                              :or {zk-root "/slacker/cluster"
                                   grouping :random
                                   grouping-results :single
