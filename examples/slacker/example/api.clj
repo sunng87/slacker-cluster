@@ -28,5 +28,5 @@
     (throw (RuntimeException. "Random Exception"))))
 
 (defn long-running []
-  (Thread/sleep 10000)
+  (Thread/sleep 15000)
   true)
