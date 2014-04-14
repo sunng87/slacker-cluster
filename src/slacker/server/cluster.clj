@@ -4,6 +4,7 @@
   (:use [clojure.string :only [split]])
   (:require [slacker.server])
   (:require [slacker.utils :as utils])
+  (:require [clojure.tools.logging :as logging])
   (:import java.net.Socket))
 
 (declare ^{:dynamic true} *zk-conn*)
@@ -76,6 +77,21 @@
   `(binding [*zk-conn* ~zk-conn]
      ~@body))
 
+(declare register-zk-data)
+(defn- on-session-expired [cluster port nss fns]
+  (fn [evt]
+    (when (= (:keeper-state evt) :Expired)
+      (logging/warn "Zookeeper session expired. Trying to reconnect.")
+      (register-zk-data cluster port nss fns))))
+
+(defn- register-zk-data [cluster port nss fns]
+  (logging/info "Creating zookeeper nodes for slacker server.")
+  (with-zk (zk/connect (:zk cluster)
+                       :timeout-msec 3000
+                       :watcher (on-session-expired cluster port nss fns))
+    (publish-cluster cluster port
+                     (map ns-name nss) fns)))
+
 (defn start-slacker-server
   "Start a slacker server to expose all public functions under
   a namespace. This function is enhanced for cluster support. You can
@@ -91,7 +107,5 @@
         funcs (apply merge
                      (map slacker.server/ns-funcs exposed-ns))]
     (when-not (nil? cluster)
-      (with-zk (zk/connect (:zk cluster))
-        (publish-cluster cluster port
-                         (map ns-name exposed-ns) funcs)))
+      (register-zk-data cluster port exposed-ns funcs))
     svr))
