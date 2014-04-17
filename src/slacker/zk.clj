@@ -54,16 +54,16 @@
                   & {:keys [persistent? data sequential?]
                      :or {persistent? true
                           sequential? false}}]
-  (.. conn
-      (create)
-      (withMode ^CreateMode
-       (cond
-        (and persistent? sequential?) CreateMode/PERSISTENT_SEQUENTIAL
-        persistent? CreateMode/PERSISTENT
-        sequential? CreateMode/EPHEMERAL_SEQUENTIAL
-        :else CreateMode/EPHEMERAL))
-      (creatingParentsIfNeeded)
-      (forPath path ^bytes data)))
+  (let [mode (cond
+              (and persistent? sequential?) CreateMode/PERSISTENT_SEQUENTIAL
+              persistent? CreateMode/PERSISTENT
+              sequential? CreateMode/EPHEMERAL_SEQUENTIAL
+              :else CreateMode/EPHEMERAL)]
+    (.. conn
+        (create)
+        (withMode ^CreateMode mode)
+        (creatingParentsIfNeeded)
+        (forPath path ^bytes data))))
 
 (defn set-data [^CuratorFramework conn
                 ^String path

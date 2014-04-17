@@ -26,8 +26,7 @@
    "
   [zk-conn node-name
    & {:keys [data persistent?]
-      :or {data nil
-           persistent? false}}]
+      :or {persistent? false}}]
   (when-not (zk/exists zk-conn node-name)
     (zk/create-all zk-conn node-name
                    :persistent? persistent?
@@ -47,7 +46,7 @@
     (create-node *zk-conn* (utils/zk-path zk-root
                                           cluster-name
                                           "servers"
-                                          server-node ))
+                                          server-node))
     (doseq [nn ns-names]
       (create-node *zk-conn* (utils/zk-path zk-root
                                             cluster-name
