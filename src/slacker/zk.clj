@@ -3,13 +3,19 @@
            [org.apache.curator.framework
             CuratorFramework
             CuratorFrameworkFactory]
-           [org.apache.curator.framework.api CuratorWatcher]
+           [org.apache.curator.framework.api
+            CuratorWatcher
+            CuratorListener
+            CuratorEvent
+            CuratorEventType]
            [org.apache.zookeeper CreateMode WatchedEvent]
            [org.apache.zookeeper.data Stat]))
 
 (defn connect [connect-string]
   (doto (CuratorFrameworkFactory/newClient
          connect-string
+         5000 ;; session timeout
+         5000 ;; connection timeout
          (RetryNTimes. Integer/MAX_VALUE 5000))
     (.start)))
 
@@ -74,19 +80,19 @@
          sdb (some? version (.withVersion sdb version) sdb)]
      (.forPath sdb  path data))))
 
-(defn get-children [^CuratorFramework conn
+(defn children [^CuratorFramework conn
                     ^String path
-                    & {:keys [watched watcher]}]
+                    & {:keys [watch? watcher]}]
   (let [gcb (.getChildren conn)
-        gcb (if watched (.watched gcb) gcb)
+        gcb (if watch? (.watched gcb) gcb)
         gcb (if watcher (.usingWatcher gcb (wrap-watcher watcher)) gcb)]
     (.forPath gcb path)))
 
 (defn data [^CuratorFramework conn
             ^String path
-            & {:keys [watched watcher]}]
+            & {:keys [watch? watcher]}]
   (let [gcb (.getData conn)
-        gcb (if watched (.watched gcb) gcb)
+        gcb (if watch? (.watched gcb) gcb)
         gcb (if watcher (.usingWatcher gcb (wrap-watcher watcher)) gcb)]
     (.forPath gcb path)))
 
@@ -105,12 +111,23 @@
 
 (defn exists [^CuratorFramework conn
               ^String path
-              & {:keys [watched watcher]}]
+              & {:keys [watch? watcher]}]
   (wrap-stat
    (let [gcb (.checkExists conn)
-         gcb (if watched (.watched gcb) gcb)
+         gcb (if watch? (.watched gcb) gcb)
          gcb (if watcher (.usingWatcher gcb (wrap-watcher watcher)) gcb)]
      (.forPath gcb path))))
 
 (defn close [^CuratorFramework conn]
   (.close conn))
+
+(defn register-watcher [^CuratorFramework conn
+                        watcher-fn]
+  (.. conn
+      (getCuratorListenable)
+      (addListener (reify CuratorListener
+                     (eventReceived [this conn* event]
+                       (when (= (.getType ^CuratorEvent event)
+                                CuratorEventType/WATCHED)
+                         (.process (wrap-watcher watcher-fn)
+                                   (.getWatchedEvent ^CuratorEvent event))))))))

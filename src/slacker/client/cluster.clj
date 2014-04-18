@@ -1,5 +1,5 @@
 (ns slacker.client.cluster
-  (:require [zookeeper :as zk])
+  (:require [slacker.zk :as zk])
   (:require [slacker.client])
   (:require [slacker.utils :as utils])
   (:use [slacker.client.common])
@@ -62,6 +62,15 @@
   (case (:event-type e)
     :NodeChildrenChanged (refresh-all-servers sc)
     nil))
+
+(defn- on-zk-events [e sc]
+  (if (.endsWith ^String (:path e) "servers")
+    ;; event on `servers` node
+    (clients-callback e sc)
+    ;; event on `namespaces` nodes
+    (let [matcher (re-matches #"/.+/namespaces/?(.*)" (:path e))]
+      (if-not (nil? matcher)
+        (ns-callback e sc (second matcher))))))
 
 (defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
   (let [fnode (utils/zk-path zk-root cluster-name "functions" fname)]
@@ -149,8 +158,7 @@
   (refresh-associated-servers [this nsname]
     (let [node-path (utils/zk-path (:zk-root options)
                                    cluster-name "namespaces" nsname)
-          servers (zk/children zk-conn node-path
-                               :watch? true)
+          servers (zk/children zk-conn node-path :watch? true)
           servers (or servers [])]
       ;; update servers for this namespace
       (swap! slacker-ns-servers assoc nsname servers)
@@ -163,7 +171,8 @@
       servers))
   (refresh-all-servers [this]
     (let [node-path (utils/zk-path (:zk-root options) cluster-name "servers")
-          servers (into #{} (zk/children zk-conn node-path :watch? true))
+          servers (into #{} (zk/children zk-conn node-path
+                                         :watch? true))
           servers (or servers [])]
       ;; close connection to offline servers, remove from slacker-clients
       (doseq [s (keys @slacker-clients)]
@@ -254,15 +263,6 @@
        :meta (meta-data-from-zk zk-conn (:zk-root options)
                                 cluster-name args))}))
 
-(defn- on-zk-events [e sc]
-  (if (.endsWith ^String (:path e) "servers")
-    ;; event on `servers` node
-    (clients-callback e sc)
-    ;; event on `namespaces` nodes
-    (let [matcher (re-matches #"/.+/namespaces/?(.*)" (:path e))]
-      (if-not (nil? matcher)
-        (ns-callback e sc (second matcher))))))
-
 (defn clustered-slackerc
   "create a cluster enalbed slacker client
   options:
@@ -311,8 +311,8 @@
                :grouping grouping
                :grouping-results grouping-results
                :grouping-exceptions grouping-exceptions))]
-     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
      ;; watch 'servers' node
+     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
      (zk/children zk-conn
                   (utils/zk-path zk-root cluster-name "servers")
                   :watch? true)
