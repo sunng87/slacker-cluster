@@ -6,7 +6,7 @@
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [slacker "0.12.0-SNAPSHOT"]
                  [org.apache.curator/curator-framework "2.4.1"
-                  :exclusions [jline log4j org.slf4j/slf4j-log4j12]]
+                  :exclusions [jline log4j]]
                  [org.clojure/tools.logging "0.2.6"]]
   :profiles {:example {:source-paths ["examples"]}
              :1.3 {:dependencies [org.clojure/clojure "1.3.0"]}}
