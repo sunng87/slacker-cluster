@@ -7,6 +7,7 @@ This is the cluster module for
 framework.
 
 [![Build Status](https://travis-ci.org/sunng87/slacker-cluster.png?branch=master)](https://travis-ci.org/sunng87/slacker-cluster)
+[![Dependency Status](https://www.versioneye.com/user/projects/5358b3f3fe0d07391d0000d2/badge.png)](https://www.versioneye.com/user/projects/5358b3f3fe0d07391d0000d2)
 
 With help from ZooKeeper, slacker has a solution for high
 availability and load balancing. You can have several slacker servers
