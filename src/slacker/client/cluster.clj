@@ -64,13 +64,14 @@
     nil))
 
 (defn- on-zk-events [e sc]
-  (if (.endsWith ^String (:path e) "servers")
-    ;; event on `servers` node
-    (clients-callback e sc)
-    ;; event on `namespaces` nodes
-    (let [matcher (re-matches #"/.+/namespaces/?(.*)" (:path e))]
-      (if-not (nil? matcher)
-        (ns-callback e sc (second matcher))))))
+  (when (not= (:event-type e) :None)
+    (if (.endsWith ^String (:path e) "servers")
+      ;; event on `servers` node
+      (clients-callback e sc)
+      ;; event on `namespaces` nodes
+      (let [matcher (re-matches #"/.+/namespaces/?(.*)" (:path e))]
+        (if-not (nil? matcher)
+          (ns-callback e sc (second matcher)))))))
 
 (defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
   (let [fnode (utils/zk-path zk-root cluster-name "functions" fname)]
