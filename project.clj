@@ -5,7 +5,7 @@
   :url "https://github.com/sunng87/slacker-cluster"
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [slacker "0.12.0-SNAPSHOT"]
-                 [org.apache.curator/curator-framework "2.4.1"
+                 [org.apache.curator/curator-framework "2.4.2"
                   :exclusions [jline]]
                  [org.clojure/tools.logging "0.2.6"]]
   :profiles {:example {:source-paths ["examples"]}
