@@ -13,4 +13,7 @@
   :plugins [[codox "0.6.7"]]
   :global-vars {*warn-on-reflection* true}
   :aliases {"run-example-server" ["with-profile" "default,example" "run" "-m" "slacker.example.cluster-server"]
-            "run-example-client" ["with-profile" "default,example" "run" "-m" "slacker.example.cluster-client"]})
+            "run-example-client" ["with-profile" "default,example" "run" "-m" "slacker.example.cluster-client"]}
+  :lein-release {:scm :git
+                 :deploy-via :shell
+                 :shell ["lein" "deploy" "clojars"]})
