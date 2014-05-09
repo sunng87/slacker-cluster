@@ -1,5 +1,5 @@
 (ns slacker.server.cluster
-  (:require [zookeeper :as zk])
+  (:require [slacker.zk :as zk])
   (:use [slacker common serialization])
   (:use [clojure.string :only [split]])
   (:require [slacker.server])
@@ -27,13 +27,11 @@
    "
   [zk-conn node-name
    & {:keys [data persistent?]
-      :or {data nil
-           persistent? false}}]
-  (if-not (zk/exists zk-conn node-name )
-    (zk/create-all zk-conn node-name :persistent? persistent?))
-  (if-not (nil? data)
-    (zk/set-data zk-conn node-name data
-                 (:version (zk/exists zk-conn node-name)))))
+      :or {persistent? false}}]
+  (when-not (zk/exists zk-conn node-name)
+    (zk/create-all zk-conn node-name
+                   :persistent? persistent?
+                   :data data)))
 
 (defn publish-cluster
   "publish server information to zookeeper as cluster for client"
@@ -49,7 +47,7 @@
     (create-node *zk-conn* (utils/zk-path zk-root
                                           cluster-name
                                           "servers"
-                                          server-node ))
+                                          server-node))
     (doseq [nn ns-names]
       (create-node *zk-conn* (utils/zk-path zk-root
                                             cluster-name

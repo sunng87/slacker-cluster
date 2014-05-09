@@ -1,5 +1,5 @@
 (ns slacker.client.cluster
-  (:require [zookeeper :as zk])
+  (:require [slacker.zk :as zk])
   (:require [slacker.client])
   (:require [slacker.utils :as utils])
   (:use [slacker.client.common])
@@ -64,6 +64,16 @@
     :NodeChildrenChanged (refresh-all-servers sc)
     nil))
 
+(defn- on-zk-events [e sc]
+  (when (not= (:event-type e) :None)
+    (if (.endsWith ^String (:path e) "servers")
+      ;; event on `servers` node
+      (clients-callback e sc)
+      ;; event on `namespaces` nodes
+      (let [matcher (re-matches #"/.+/namespaces/?(.*)" (:path e))]
+        (if-not (nil? matcher)
+          (ns-callback e sc (second matcher)))))))
+
 (defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
   (let [fnode (utils/zk-path zk-root cluster-name "functions" fname)]
     (if-let [node-data (zk/data zk-conn fnode)]
@@ -98,12 +108,16 @@
               :nested (map :cause (filter :cause call-results))}}
 
      :else
-     (let [valid-results (remove :cause call-results)]
-       {:result (case (grouping-results)
+     (let [valid-results (remove :cause call-results)
+           grouping-results-config (grouping-results)]
+       {:result (case grouping-results-config
                   :single (:result (first valid-results))
                   :vector (mapv :result valid-results)
                   :map (into {} (map #(vector (:server %) (:result %))
-                                     valid-results)))}))))
+                                     valid-results))
+                  (if (fn? grouping-results-config)
+                    (grouping-results-config valid-results)
+                    (throw (ex-info "Unsupported grouping-results value"))))}))))
 
 (deftype GroupedPromise [grouping-fn promises]
   IDeref
@@ -139,15 +153,14 @@
        (:grouping-exceptions options))))
 
 (deftype ClusterEnabledSlackerClient
-    [cluster-name zk-conn-wrapper
+    [cluster-name zk-conn
      slacker-clients slacker-ns-servers
      options]
   CoordinatorAwareClient
   (refresh-associated-servers [this nsname]
     (let [node-path (utils/zk-path (:zk-root options)
                                    cluster-name "namespaces" nsname)
-          servers (zk/children @zk-conn-wrapper node-path
-                               :watch? true)
+          servers (zk/children zk-conn node-path :watch? true)
           servers (or servers [])]
       ;; update servers for this namespace
       (swap! slacker-ns-servers assoc nsname servers)
@@ -160,7 +173,8 @@
       servers))
   (refresh-all-servers [this]
     (let [node-path (utils/zk-path (:zk-root options) cluster-name "servers")
-          servers (into #{} (zk/children @zk-conn-wrapper node-path :watch? true))
+          servers (into #{} (zk/children zk-conn node-path
+                                         :watch? true))
           servers (or servers [])]
       ;; close connection to offline servers, remove from slacker-clients
       (doseq [s (keys @slacker-clients)]
@@ -234,7 +248,7 @@
                            target-conns)]
             (grouped-promise grouping-fn call-prms))))))
   (close [this]
-    (zk/close @zk-conn-wrapper)
+    (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)]
       (slacker.client/close-slackerc s))
     (reset! slacker-clients {})
@@ -249,54 +263,17 @@
        (let [nsname (or args "")
              ns-root (utils/zk-path (:zk-root options) cluster-name
                                     "functions" nsname)
-             fnames (or (zk/children @zk-conn-wrapper ns-root) [])]
+             fnames (or (zk/children zk-conn ns-root) [])]
          (map #(str nsname "/" %) fnames))
-       :meta (meta-data-from-zk @zk-conn-wrapper (:zk-root options)
+       :meta (meta-data-from-zk zk-conn (:zk-root options)
                                 cluster-name args))}))
 
-(defn- on-zk-events [e sc]
-  (if (.endsWith ^String (:path e) "servers")
-    ;; event on `servers` node
-    (clients-callback e sc)
-    ;; event on `namespaces` nodes
-    (let [matcher (re-matches #"/.+/namespaces/?(.*)" (:path e))]
-      (if-not (nil? matcher)
-        (ns-callback e sc (second matcher))))))
-
-(declare create-zk-connection)
-
-(defn- on-session-expired [& args]
-  (fn [e]
-    (when (= (:keeper-state e) :Expired)
-      (logging/warn "Zookeeper session expired. Trying to reconnect.")
-      (let [sc (last args)]
-        (delete-cluster-data sc))
-      (apply create-zk-connection args))))
-
-(defn- create-zk-connection [zk-server
-                             zk-root
-                             cluster-name
-                             zk-conn-wrapper
-                             sc]
-  (reset! zk-conn-wrapper
-          (zk/connect zk-server
-                      :timeout-msec 30000
-                      :watcher (on-session-expired
-                                zk-server
-                                zk-root
-                                cluster-name
-                                zk-conn-wrapper
-                                sc)))
-  (zk/register-watcher @zk-conn-wrapper (fn [e] (on-zk-events e sc)))
-  ;; watch 'servers' node
-  (zk/children @zk-conn-wrapper
-               (utils/zk-path zk-root cluster-name "servers")
-               :watch? true))
 
 (defn clustered-slackerc
   "create a cluster enalbed slacker client
   options:
   * zk-root: specify the root path in zookeeper
+  * factory: a client factory, default to non-ssl implementation
   * grouping: specify how the client select servers to call,
               this allows one or more servers to be called.
               possible values:
@@ -320,7 +297,8 @@
                         * `:any` the API throws exception when any instance throws exception"
 
   [cluster-name zk-server & {:keys [zk-root grouping grouping-results
-                                    grouping-exceptions ping-interval]
+                                    grouping-exceptions ping-interval
+                                    factory]
                              :or {zk-root "/slacker/cluster"
                                   grouping :random
                                   grouping-results :single
@@ -328,17 +306,20 @@
                                   ping-interval 0}
                              :as options}]
   (delay
-   (let [zk-conn-wrapper (atom nil)
+   (let [zk-conn (zk/connect zk-server)
          slacker-clients (atom {})
          slacker-ns-servers (atom {})
          sc (ClusterEnabledSlackerClient.
-             cluster-name zk-conn-wrapper
+             cluster-name zk-conn
              slacker-clients slacker-ns-servers
              (assoc options
                :zk-root zk-root
                :grouping grouping
                :grouping-results grouping-results
                :grouping-exceptions grouping-exceptions))]
-     (create-zk-connection zk-server zk-root cluster-name
-                           zk-conn-wrapper sc)
+     ;; watch 'servers' node
+     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
+     (zk/children zk-conn
+                  (utils/zk-path zk-root cluster-name "servers")
+                  :watch? true)
      sc)))

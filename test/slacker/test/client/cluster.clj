@@ -50,4 +50,13 @@
                               ["1" "2"]
                               [{:result 1}
                                {:result 2}])]
-    (is (= 1 (-> r :result (get "1"))))))
+    (is (= 1 (-> r :result (get "1")))))
+  (let [grf (fn []
+              (fn [results]
+                (reduce + (map :result results))))
+        r (group-call-results grf
+                              :all
+                              ["1" "2"]
+                              [{:result 1}
+                               {:result 2}])]
+    (is (= 3 (:result r)))))
