@@ -1,10 +1,10 @@
-(defproject slacker/slacker-cluster "0.12.0-SNAPSHOT"
+(defproject slacker/slacker-cluster "0.12.0-rc1"
   :description "Cluster support for slacker"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :url "https://github.com/sunng87/slacker-cluster"
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [slacker "0.12.0-SNAPSHOT"]
+                 [slacker "0.12.0-rc1"]
                  [org.apache.curator/curator-framework "2.4.2"
                   :exclusions [jline]]
                  [org.clojure/tools.logging "0.2.6"]]
