@@ -41,23 +41,29 @@
         server-node (str (or (cluster :node)
                              (auto-detect-ip (first (split (:zk cluster) #","))))
                          ":" port)
-        funcs (keys funcs-map)]
+        funcs (keys funcs-map)
+
+        ephemeral-servers-node-paths (conj (map #(utils/zk-path zk-root
+                                                                cluster-name
+                                                                "namespaces"
+                                                                %
+                                                                server-node))
+                                           (utils/zk-path zk-root
+                                                          cluster-name
+                                                          "servers"
+                                                          server-node))]
+
+    ;; persistent nodes
     (create-node *zk-conn* (utils/zk-path zk-root cluster-name "servers")
                  :persistent? true)
-    (create-node *zk-conn* (utils/zk-path zk-root
-                                          cluster-name
-                                          "servers"
-                                          server-node))
+
     (doseq [nn ns-names]
       (create-node *zk-conn* (utils/zk-path zk-root
                                             cluster-name
                                             "namespaces"
                                             nn)
-                   :persistent? true)
-      (create-node *zk-conn* (utils/zk-path zk-root
-                                            cluster-name
-                                            "namespaces"
-                                            nn server-node)))
+                   :persistent? true))
+
     (doseq [fname funcs]
       (create-node *zk-conn*
                    (utils/zk-path zk-root cluster-name "functions" fname)
@@ -67,7 +73,10 @@
                           (select-keys
                            (meta (funcs-map fname))
                            [:name :doc :arglists])
-                          :bytes)))))
+                          :bytes)))
+
+    (doall (map #(zk/create-persistent-ephemeral-node *zk-conn* %)
+                ephemeral-servers-node-paths))))
 
 (defmacro with-zk
   "publish server information to specifized zookeeper for client"
@@ -88,9 +97,17 @@
         {:keys [cluster]} options
         exposed-ns (if (coll? exposed-ns) exposed-ns [exposed-ns])
         funcs (apply merge
-                     (map slacker.server/ns-funcs exposed-ns))]
-    (when-not (nil? cluster)
-      (with-zk (zk/connect (:zk cluster))
-        (publish-cluster cluster port
-                         (map ns-name exposed-ns) funcs)))
-    svr))
+                     (map slacker.server/ns-funcs exposed-ns))
+        zk-conn (zk/connect (:zk cluster))
+        zk-nodes (when-not (nil? cluster)
+                   (with-zk zk-conn
+                     (publish-cluster cluster port
+                                      (map ns-name exposed-ns) funcs)))]
+    [svr zk-conn zk-nodes]))
+
+(defn stop-slacker-server [server-tuple]
+  (let [[svr zk-conn zk-nodes] server-tuple]
+    (doseq [n zk-nodes]
+      (zk/uncreate-persistent-ephemeral-node n))
+    (zk/close zk-conn)
+    (slacker.server/stop-slacker-server svr)))

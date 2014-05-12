@@ -8,6 +8,8 @@
             CuratorListener
             CuratorEvent
             CuratorEventType]
+           [org.apache.curator.framework.recipes.nodes
+            PersistentEphemeralNode PersistentEphemeralNode$Mode]
            [org.apache.zookeeper CreateMode WatchedEvent]
            [org.apache.zookeeper.data Stat]))
 
@@ -70,6 +72,17 @@
         (withMode ^CreateMode mode)
         (creatingParentsIfNeeded)
         (forPath path ^bytes data))))
+
+(defn create-persistent-ephemeral-node [^CuratorFramework conn
+                                        ^String path]
+  (doto (PersistentEphemeralNode. conn
+                                  PersistentEphemeralNode$Mode/EPHEMERAL
+                                  path
+                                  nil)
+    (.start)))
+
+(defn uncreate-persistent-ephemeral-node [^PersistentEphemeralNode node]
+  (.stop node))
 
 (defn set-data [^CuratorFramework conn
                 ^String path
