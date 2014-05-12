@@ -78,7 +78,7 @@
   (doto (PersistentEphemeralNode. conn
                                   PersistentEphemeralNode$Mode/EPHEMERAL
                                   path
-                                  nil)
+                                  (byte-array 0))
     (.start)))
 
 (defn uncreate-persistent-ephemeral-node [^PersistentEphemeralNode node]

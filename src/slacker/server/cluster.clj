@@ -47,7 +47,8 @@
                                                                 cluster-name
                                                                 "namespaces"
                                                                 %
-                                                                server-node))
+                                                                server-node)
+                                                ns-names)
                                            (utils/zk-path zk-root
                                                           cluster-name
                                                           "servers"
