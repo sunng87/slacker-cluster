@@ -200,7 +200,7 @@
           (parse-grouping-options options call-options
                                   ns-name func-name params)
           target-servers (find-server slacker-ns-servers ns-name grouping*)
-          target-conns (map @slacker-clients target-servers)]
+          target-conns (filter some? (map @slacker-clients target-servers))]
       (if (empty? target-conns)
         {:cause {:error :not-found}}
         (do
@@ -223,7 +223,7 @@
                                   ns-name func-name params)
           target-servers (find-server slacker-ns-servers ns-name
                                      (partial grouping* ns-name func-name params))
-          target-conns (map @slacker-clients target-servers)
+          target-conns (filter some? (map @slacker-clients target-servers))
           grouping-fn (partial group-call-results
                                grouping-results*
                                grouping-exceptions*
