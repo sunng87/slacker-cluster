@@ -29,10 +29,8 @@
 
 (defn use-remote
   "cluster enabled use-remote"
-  ([sc-sym] (use-remote sc-sym (ns-name *ns*)))
-  ([sc-sym rns & options]
-     (let [sc @(resolve sc-sym)]
-       (apply slacker.client/use-remote sc-sym rns options))))
+  [& options]
+  (apply slacker.client/use-remote options))
 
 (defn- create-slackerc [connection-info & options]
   (apply slacker.client/slackerc connection-info options))
