@@ -50,7 +50,7 @@
            (zk/start-leader-election *zk-conn*
                                      leader-mutex-path
                                      (fn [conn]
-                                       (logging/infof "%s is becoming the leader" server-node)
+                                       (logging/infof "%s is becoming the leader of %s" server-node %)
                                        (zk/set-data conn
                                                     leader-path
                                                     (.getBytes ^String server-node "UTF-8"))
