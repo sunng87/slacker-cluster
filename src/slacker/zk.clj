@@ -10,6 +10,8 @@
             CuratorEventType]
            [org.apache.curator.framework.recipes.nodes
             PersistentEphemeralNode PersistentEphemeralNode$Mode]
+           [org.apache.curator.framework.recipes.leader
+            LeaderSelector LeaderSelectorListenerAdapter]
            [org.apache.zookeeper CreateMode WatchedEvent]
            [org.apache.zookeeper.data Stat]))
 
@@ -84,13 +86,24 @@
 (defn uncreate-persistent-ephemeral-node [^PersistentEphemeralNode node]
   (.stop node))
 
+(defn start-leader-election [^CuratorFramework conn
+                             ^String mutex-path
+                             listener-fn]
+  (doto (LeaderSelector. conn mutex-path (proxy [LeaderSelectorListenerAdapter] []
+                                           (takeLeadership [c]
+                                             (listener-fn c))))
+    (.start)))
+
+(defn stop-leader-election [^LeaderSelector s]
+  (.stop s))
+
 (defn set-data [^CuratorFramework conn
                 ^String path
                 ^bytes data
                 & {:keys [version]}]
   (wrap-stat
    (let [sdb (.setData conn)
-         sdb (some? version (.withVersion sdb version) sdb)]
+         sdb (if (some? version) (.withVersion sdb version) sdb)]
      (.forPath sdb  path data))))
 
 (defn children [^CuratorFramework conn
