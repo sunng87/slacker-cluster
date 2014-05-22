@@ -33,6 +33,31 @@
                    :persistent? persistent?
                    :data data)))
 
+(defn select-leaders [zk-root cluster-name nss server-node]
+  (doall
+   (map #(let [blocker (promise)
+               leader-path (utils/zk-path
+                            zk-root
+                            cluster-name
+                            "namespaces"
+                            %
+                            "leader")
+               leader-mutex-path (utils/zk-path
+                                  leader-path
+                                  "mutex")]
+           (create-node *zk-conn* leader-mutex-path
+                        :persistent? true)
+           (zk/start-leader-election *zk-conn*
+                                     leader-mutex-path
+                                     (fn [conn]
+                                       (logging/infof "%s is becoming the leader" server-node)
+                                       (zk/set-data conn
+                                                    leader-path
+                                                    (.getBytes ^String server-node "UTF-8"))
+                                       ;; block forever
+                                       @blocker)))
+        nss)))
+
 (defn publish-cluster
   "publish server information to zookeeper as cluster for client"
   [cluster port ns-names funcs-map]
@@ -42,8 +67,6 @@
                              (auto-detect-ip (first (split (:zk cluster) #","))))
                          ":" port)
         funcs (keys funcs-map)
-
-        leader-mutex-path (utils/zk-path zk-root cluster-name "leader" "mutex")
 
         ephemeral-servers-node-paths (conj (map #(utils/zk-path zk-root
                                                                 cluster-name
@@ -78,22 +101,10 @@
                            [:name :doc :arglists])
                           :bytes)))
 
-    ;; create leader election paths
-    (create-node *zk-conn* leader-mutex-path :persistent? true)
-
     (let [ephemeral-nodes (doall (map #(zk/create-persistent-ephemeral-node *zk-conn* %)
                                       ephemeral-servers-node-paths))
-          p (promise)
-          leader-selector (zk/start-leader-election *zk-conn*
-                                                    leader-mutex-path
-                                                    (fn [conn]
-                                                      (logging/infof "% is becoming the leader" server-node)
-                                                      (zk/set-data conn
-                                                                   (utils/zk-path zk-root cluster-name "leader")
-                                                                   (.getBytes ^String server-node "UTF-8"))
-                                                      ;; block forever
-                                                      @p))]
-      [ephemeral-nodes p leader-selector])))
+          leader-selectors (select-leaders zk-root cluster-name ns-names server-node)]
+      [ephemeral-nodes leader-selectors])))
 
 (defmacro with-zk
   "publish server information to specifized zookeeper for client"
@@ -124,10 +135,12 @@
 
 (defn stop-slacker-server [server-tuple]
   (let [[svr zk-conn zk-recipes] server-tuple
-        [zk-ephemeral-nodes release-leader leader-selector] zk-recipes]
+        [zk-ephemeral-nodes leader-selectors] zk-recipes]
+    ;; cleanup zookeeper resources
     (doseq [n zk-ephemeral-nodes]
       (zk/uncreate-persistent-ephemeral-node n))
-    (deliver release-leader nil)
-    (zk/stop-leader-election leader-selector)
+    (doseq [n leader-selectors]
+      (zk/stop-leader-election n))
     (zk/close zk-conn)
+
     (slacker.server/stop-slacker-server svr)))
