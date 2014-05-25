@@ -41,7 +41,7 @@
                             cluster-name
                             "namespaces"
                             %
-                            "leader")
+                            "_leader")
                leader-mutex-path (utils/zk-path
                                   leader-path
                                   "mutex")]
