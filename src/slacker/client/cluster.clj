@@ -43,6 +43,7 @@
                                :all servers
                                :random [(rand-nth servers)]
                                :first [(first servers)]
+                               :leader [(first servers)]
                                (if (sequential? grouped-servers)
                                  grouped-servers
                                  (vector grouped-servers)))]

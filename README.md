@@ -82,6 +82,7 @@ You can also return constant value:
 
 * `:all` call on all servers available
 * `:random` pick a random server to call
+* `:leader` always pick the leader node in cluster (new in 0.12)
 
 ### Grouping results
 
