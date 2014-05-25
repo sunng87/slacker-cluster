@@ -55,6 +55,7 @@
   (case (:event-type e)
     :NodeDeleted (delete-ns-mapping sc nsname)
     :NodeChildrenChanged (refresh-associated-servers sc nsname)
+    :NodeDataChanged (refresh-associated-servers sc nsname)
     nil))
 
 (defn- clients-callback [e sc]
@@ -68,7 +69,7 @@
       ;; event on `servers` node
       (clients-callback e sc)
       ;; event on `namespaces` nodes
-      (let [matcher (re-matches #"/.+/namespaces/?(.*)" (:path e))]
+      (let [matcher (re-matches #"/.+/namespaces/?(.*?)(/.*)?" (:path e))]
         (if-not (nil? matcher)
           (ns-callback e sc (second matcher)))))))
 
@@ -158,8 +159,21 @@
   (refresh-associated-servers [this nsname]
     (let [node-path (utils/zk-path (:zk-root options)
                                    cluster-name "namespaces" nsname)
-          servers (zk/children zk-conn node-path :watch? true)
-          servers (or servers [])]
+          servers (remove utils/meta-path?
+                          (zk/children zk-conn node-path :watch? true))
+          servers (or servers [])
+          leader-node (when (not-empty servers)
+                        (String. ^bytes (zk/data zk-conn (utils/zk-path node-path "_leader")
+                                          :watch? true)
+                                 "UTF-8"))
+
+          servers (if (and leader-node
+                           (not-empty (filter #(= leader-node %) servers)))
+                    ;; put leader node on the first
+                    (apply vector leader-node
+                           (remove #(= leader-node %) servers))
+                    servers)]
+      (logging/info "Setting leader node" leader-node)
       ;; update servers for this namespace
       (swap! slacker-ns-servers assoc nsname servers)
       ;; establish connection if the server is not connected

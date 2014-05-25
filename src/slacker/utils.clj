@@ -18,3 +18,6 @@
 
 (defn unescape-zkpath [fname]
   (replace fname "_slash_" "/"))
+
+(defn meta-path? [^String name]
+  (.startsWith name "_"))
