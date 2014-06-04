@@ -146,8 +146,9 @@
   (refresh-associated-servers [this nsname]
     (let [node-path (utils/zk-path (:zk-root options)
                                    cluster-name "namespaces" nsname)
-          servers (zk/children @zk-conn-wrapper node-path
-                               :watch? true)
+          servers (remove utils/meta-path?
+                          (zk/children @zk-conn-wrapper node-path
+                                       :watch? true))
           servers (or servers [])]
       ;; update servers for this namespace
       (swap! slacker-ns-servers assoc nsname servers)
