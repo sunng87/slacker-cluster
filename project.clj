@@ -9,8 +9,7 @@
                   :exclusions [jline]]
                  [org.apache.curator/curator-recipes "2.4.2"]
                  [org.clojure/tools.logging "0.2.6"]]
-  :profiles {:example {:source-paths ["examples"]}
-             :1.3 {:dependencies [org.clojure/clojure "1.3.0"]}}
+  :profiles {:example {:source-paths ["examples"]}}
   :plugins [[codox "0.6.7"]]
   :global-vars {*warn-on-reflection* true}
   :aliases {"run-example-server" ["with-profile" "default,example" "run" "-m" "slacker.example.cluster-server"]
