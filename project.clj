@@ -4,11 +4,11 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :url "https://github.com/sunng87/slacker-cluster"
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [slacker "0.12.0"]
-                 [org.apache.curator/curator-framework "2.4.2"
+                 [slacker "0.12.1-SNAPSHOT"]
+                 [org.apache.curator/curator-framework "2.6.0"
                   :exclusions [jline]]
-                 [org.apache.curator/curator-recipes "2.4.2"]
-                 [org.clojure/tools.logging "0.2.6"]]
+                 [org.apache.curator/curator-recipes "2.6.0"]
+                 [org.clojure/tools.logging "0.3.0"]]
   :profiles {:example {:source-paths ["examples"]}}
   :plugins [[codox "0.6.7"]]
   :global-vars {*warn-on-reflection* true}
