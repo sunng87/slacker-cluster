@@ -281,7 +281,7 @@
                              sc]
   (reset! zk-conn-wrapper
           (zk/connect zk-server
-                      :timeout-msec 30000
+                      :timeout-msec 5000
                       :watcher (on-session-expired
                                 zk-server
                                 zk-root
