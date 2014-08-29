@@ -160,6 +160,7 @@
             (swap! slacker-clients assoc s sc))))
       servers))
   (refresh-all-servers [this]
+    ;; this function actually deletes offlined clients
     (let [node-path (utils/zk-path (:zk-root options) cluster-name "servers")
           servers (into #{} (zk/children @zk-conn-wrapper node-path :watch? true))
           servers (or servers [])]
@@ -292,7 +293,12 @@
   ;; watch 'servers' node
   (zk/children @zk-conn-wrapper
                (utils/zk-path zk-root cluster-name "servers")
-               :watch? true))
+               :watch? true)
+  ;; watch namespaces nodes
+  (doseq [n (keys (get-ns-mappings sc))]
+    (zk/children @zk-conn-wrapper
+                 (utils/zk-path zk-root cluster-name "namespaces" n)
+                 :watch? true)))
 
 (defn clustered-slackerc
   "create a cluster enalbed slacker client
