@@ -10,9 +10,10 @@
 
 (defn -main [& args]
   (start-slacker-server (the-ns 'slacker.example.api)
-                        (Integer/valueOf (first args))
+                        (if (first args)
+                          (Integer/valueOf (first args))
+                          (+ 10000 (rand-int 10000)))
                         :cluster {:zk "127.0.0.1:2181"
                                   :name "example-cluster"}
                         :interceptors (interceptors [log-function-calls])))
 (println "Slacker example server (cluster enabled) started.")
-
