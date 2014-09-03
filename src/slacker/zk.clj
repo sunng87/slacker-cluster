@@ -103,7 +103,7 @@
                 & {:keys [version]}]
   (wrap-stat
    (let [sdb (.setData conn)
-         sdb (if (some? version) (.withVersion sdb version) sdb)]
+         sdb (if (not (nil? version)) (.withVersion sdb version) sdb)]
      (.forPath sdb  path data))))
 
 (defn children [^CuratorFramework conn
