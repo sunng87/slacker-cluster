@@ -9,6 +9,7 @@
                  [org.apache.curator/curator-recipes "2.6.0"]
                  [org.clojure/tools.logging "0.3.0"]]
   :profiles {:example {:source-paths ["examples"]}
+             :dev {:dependencies [[org.clojure/clojure "1.6.0"]]}
              :clojure15 {:dependencies [[org.clojure/clojure "1.5.1"]]}
              :clojure16 {:dependencies [[org.clojure/clojure "1.6.0"]]}}
   :plugins [[codox "0.8.10"]]
