@@ -319,7 +319,7 @@
                                   ping-interval 0}
                              :as options}]
   (delay
-   (let [zk-conn (zk/connect zk-server)
+   (let [zk-conn (zk/connect zk-server options)
          slacker-clients (atom {})
          slacker-ns-servers (atom {})
          sc (ClusterEnabledSlackerClient.

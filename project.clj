@@ -8,7 +8,9 @@
                   :exclusions [jline]]
                  [org.apache.curator/curator-recipes "2.6.0"]
                  [org.clojure/tools.logging "0.3.0"]]
-  :profiles {:example {:source-paths ["examples"]}
+  :profiles {:example {:source-paths ["examples"]
+                       :dependencies [[log4j "1.2.17"]
+                                      [org.slf4j/slf4j-log4j12 "1.7.7"]]}
              :dev {:dependencies [[org.clojure/clojure "1.6.0"]]}
              :clojure15 {:dependencies [[org.clojure/clojure "1.5.1"]]}
              :clojure16 {:dependencies [[org.clojure/clojure "1.6.0"]]}}

@@ -15,11 +15,11 @@
            [org.apache.zookeeper CreateMode WatchedEvent]
            [org.apache.zookeeper.data Stat]))
 
-(defn connect [connect-string]
+(defn connect [connect-string options]
   (doto (CuratorFrameworkFactory/newClient
          connect-string
-         5000 ;; session timeout
-         5000 ;; connection timeout
+         (or (:zk-session-timeout options) 5000) ;; session timeout
+         (or (:zk-connect-timeout options) 5000) ;; connect timeout
          (RetryNTimes. Integer/MAX_VALUE 5000))
     (.start)))
 

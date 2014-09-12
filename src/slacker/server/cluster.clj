@@ -122,11 +122,12 @@
                    exposed-ns
                    port
                    options)
-        {:keys [cluster]} options
+        {:keys [cluster]
+         :as options} options
         exposed-ns (if (coll? exposed-ns) exposed-ns [exposed-ns])
         funcs (apply merge
                      (map slacker.server/ns-funcs exposed-ns))
-        zk-conn (zk/connect (:zk cluster))
+        zk-conn (zk/connect (:zk cluster) options)
         zk-recipes (when-not (nil? cluster)
                    (with-zk zk-conn
                      (publish-cluster cluster port
