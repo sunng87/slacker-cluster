@@ -179,7 +179,7 @@
       (swap! slacker-ns-servers assoc nsname servers)
       ;; establish connection if the server is not connected
       (doseq [s servers]
-        (if-not (contains? @slacker-clients s)
+        (when-not (contains? @slacker-clients s)
           (let [sc (apply create-slackerc s (flatten (vec options)))]
             (logging/info (str "establishing connection to " s))
             (swap! slacker-clients assoc s sc))))
@@ -207,8 +207,12 @@
 
   SlackerClientProtocol
   (sync-call-remote [this ns-name func-name params call-options]
+    ;; synchronized refresh servers from zookeeper
     (when (nil? ((get-ns-mappings this) ns-name))
-      (refresh-associated-servers this ns-name))
+      (locking this
+        (when (nil? ((get-ns-mappings this) ns-name))
+          (refresh-associated-servers this ns-name))))
+
     (let [[grouping* grouping-results* grouping-exceptions*]
           (parse-grouping-options options call-options
                                   ns-name func-name params)
@@ -229,8 +233,12 @@
                                 target-servers call-results))))))
 
   (async-call-remote [this ns-name func-name params cb call-options]
+    ;; synchronized refresh servers from zookeeper
     (when (nil? ((get-ns-mappings this) ns-name))
-      (refresh-associated-servers this ns-name))
+      (locking this
+        (when (nil? ((get-ns-mappings this) ns-name))
+          (refresh-associated-servers this ns-name))))
+
     (let [[grouping* grouping-results* grouping-exceptions*]
           (parse-grouping-options options call-options
                                   ns-name func-name params)
