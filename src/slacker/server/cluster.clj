@@ -28,6 +28,11 @@
   [zk-conn node-name
    & {:keys [data persistent?]
       :or {persistent? false}}]
+  ;; delete ephemeral node before create it
+  (when-not persistent?
+    (try
+      (zk/delete zk-conn node-name)
+      (catch Exception _)))
   (when-not (zk/exists zk-conn node-name)
     (zk/create-all zk-conn node-name
                    :persistent? persistent?
