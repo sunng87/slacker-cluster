@@ -65,6 +65,7 @@
     nil))
 
 (defn- on-zk-events [e sc]
+  (logging/warn "getting zookeeper event" e)
   (when (not= (:event-type e) :None)
     (if (.endsWith ^String (:path e) "servers")
       ;; event on `servers` node
