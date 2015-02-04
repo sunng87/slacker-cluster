@@ -341,6 +341,9 @@
                :grouping-exceptions grouping-exceptions))]
      ;; watch 'servers' node
      (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
+     (zk/register-error-handler zk-conn
+                                (fn [msg e]
+                                  (logging/warn e "Unhandled Error" msg)))
      (zk/children zk-conn
                   (utils/zk-path zk-root cluster-name "servers")
                   :watch? true)

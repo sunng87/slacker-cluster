@@ -134,9 +134,12 @@
                      (map slacker.server/ns-funcs exposed-ns))
         zk-conn (zk/connect (:zk cluster) options)
         zk-recipes (when-not (nil? cluster)
-                   (with-zk zk-conn
-                     (publish-cluster cluster port
-                                      (map ns-name exposed-ns) funcs)))]
+                     (with-zk zk-conn
+                       (publish-cluster cluster port
+                                        (map ns-name exposed-ns) funcs)))]
+    (zk/register-error-handler zk-conn
+                               (fn [msg e]
+                                 (logging/warn e "Unhandled Error" msg)))
     [svr zk-conn zk-recipes]))
 
 (defn stop-slacker-server [server-tuple]

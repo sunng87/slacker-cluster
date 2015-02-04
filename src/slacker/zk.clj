@@ -7,7 +7,8 @@
             CuratorWatcher
             CuratorListener
             CuratorEvent
-            CuratorEventType]
+            CuratorEventType
+            UnhandledErrorListener]
            [org.apache.curator.framework.recipes.nodes
             PersistentEphemeralNode PersistentEphemeralNode$Mode]
            [org.apache.curator.framework.recipes.leader
@@ -157,3 +158,11 @@
                                 CuratorEventType/WATCHED)
                          (.process (wrap-watcher watcher-fn)
                                    (.getWatchedEvent ^CuratorEvent event))))))))
+
+(defn register-error-handler [^CuratorFramework conn
+                              error-fn]
+  (.. conn
+      (getUnhandledErrorListenable)
+      (addListener (reify UnhandledErrorListener
+                     (unhandledError [this message e]
+                       (error-fn message e))))))
