@@ -108,8 +108,8 @@
      (.forPath sdb  path data))))
 
 (defn children [^CuratorFramework conn
-                    ^String path
-                    & {:keys [watch? watcher]}]
+                ^String path
+                & {:keys [watch? watcher]}]
   (let [gcb (.getChildren conn)
         gcb (if watch? (.watched gcb) gcb)
         gcb (if watcher (.usingWatcher gcb (wrap-watcher watcher)) gcb)]

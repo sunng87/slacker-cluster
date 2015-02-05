@@ -159,6 +159,7 @@
      options]
   CoordinatorAwareClient
   (refresh-associated-servers [this nsname]
+    (logging/infof "starting to refresh servers of %s" nsname)
     (let [node-path (utils/zk-path (:zk-root options)
                                    cluster-name "namespaces" nsname)
           servers (remove utils/meta-path?
@@ -166,7 +167,7 @@
           servers (or servers [])
           leader-node (when (not-empty servers)
                         (String. ^bytes (zk/data zk-conn (utils/zk-path node-path "_leader")
-                                          :watch? true)
+                                                 :watch? true)
                                  "UTF-8"))
 
           servers (if (and leader-node
@@ -175,8 +176,9 @@
                     (apply vector leader-node
                            (remove #(= leader-node %) servers))
                     servers)]
-      (logging/info "Setting leader node" leader-node)
+      (logging/infof "Setting leader node %s" leader-node)
       ;; update servers for this namespace
+      (logging/infof "Setting servers for %s: %s" nsname servers)
       (swap! slacker-ns-servers assoc nsname servers)
       ;; establish connection if the server is not connected
       (doseq [s servers]
@@ -186,16 +188,18 @@
             (swap! slacker-clients assoc s sc))))
       servers))
   (refresh-all-servers [this]
+    (logging/infof "starting to refresh online servers list")
     (let [node-path (utils/zk-path (:zk-root options) cluster-name "servers")
           servers (into #{} (zk/children zk-conn node-path
                                          :watch? true))
-          servers (or servers [])]
+          servers (or servers #{})]
       ;; close connection to offline servers, remove from slacker-clients
       (doseq [s (keys @slacker-clients)]
         (when-not (contains? servers s)
-          (logging/info (str "closing connection of " s))
-          (slacker.client/close-slackerc (@slacker-clients s))
-          (swap! slacker-clients dissoc s)))))
+          (logging/infof "closing connection of %s" s)
+          (let [sc (@slacker-clients s)]
+            (swap! slacker-clients dissoc s)
+            (slacker.client/close-slackerc sc))))))
   (get-connected-servers [this]
     (keys @slacker-clients))
   (get-ns-mappings [this]
