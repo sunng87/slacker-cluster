@@ -66,14 +66,24 @@
 
 (defn- on-zk-events [e sc]
   (logging/warn "getting zookeeper event" e)
-  (when (not= (:event-type e) :None)
+  (cond
+    ;; zookeeper path change, refresh servers
+    (not= (:event-type e) :None)
     (if (.endsWith ^String (:path e) "servers")
       ;; event on `servers` node
       (clients-callback e sc)
       ;; event on `namespaces` nodes
       (let [matcher (re-matches #"/.+/namespaces/?(.*?)(/.*)?" (:path e))]
         (if-not (nil? matcher)
-          (ns-callback e sc (second matcher)))))))
+          (ns-callback e sc (second matcher)))))
+
+    ;; zookeeper watcher lost, reattach watchers
+    (and (= (:event-type e) :None)
+         (= (:keeper-state e) :SyncConnected))
+    (do
+      (doseq [n (keys (get-ns-mappings sc))]
+        (refresh-associated-servers sc n))
+      (refresh-all-servers sc))))
 
 (defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
   (let [fnode (utils/zk-path zk-root cluster-name "functions" fname)]
