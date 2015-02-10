@@ -172,8 +172,8 @@
     (logging/infof "starting to refresh servers of %s" nsname)
     (let [node-path (utils/zk-path (:zk-root options)
                                    cluster-name "namespaces" nsname)
-          servers (remove utils/meta-path?
-                          (zk/children zk-conn node-path :watch? true))
+          servers (doall (remove utils/meta-path?
+                                 (zk/children zk-conn node-path :watch? true)))
           servers (or servers [])
           leader-node (when (not-empty servers)
                         (String. ^bytes (zk/data zk-conn (utils/zk-path node-path "_leader")
