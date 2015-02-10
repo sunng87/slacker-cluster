@@ -122,6 +122,7 @@
      (let [valid-results (remove :cause call-results)
            grouping-results-config (grouping-results)]
        {:result (case grouping-results-config
+                  :nil nil
                   :single (:result (first valid-results))
                   :vector (mapv :result valid-results)
                   :map (into {} (map #(vector (:server %) (:result %))
@@ -320,6 +321,7 @@
                    you can also return :random or :all in this function
   * grouping-results: when you call functions on multiple server, you can specify
                       how many results return for the call. possible values:
+                      * `:nil` always returns nil
                       * `:single` returns only one value
                       * `:vector` returns values from all servers as a vector
                       * `:map` returns values from all servers as a map, server host:port as key
