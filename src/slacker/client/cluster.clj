@@ -8,6 +8,10 @@
   (:require [clojure.tools.logging :as logging])
   (:import [clojure.lang IDeref IPending IBlockingDeref]))
 
+(def ^:dynamic *grouping* nil)
+(def ^:dynamic *grouping-results* nil)
+(def ^:dynamic *grouping-exceptions* nil)
+
 (defprotocol CoordinatorAwareClient
   (refresh-associated-servers [this ns])
   (refresh-all-servers [this])
@@ -157,11 +161,16 @@
 (defn- parse-grouping-options [options call-options
                                ns-name func-name params]
   (vector
-   (partial (to-fn (:grouping call-options (:grouping options)))
+   (partial (to-fn (or *grouping*
+                       (:grouping call-options)
+                       (:grouping options)))
             ns-name func-name params)
-   (partial (to-fn (:grouping-results call-options (:grouping-results options)))
+   (partial (to-fn (or *grouping-results*
+                       (:grouping-results call-options)
+                       (:grouping-results options)))
             ns-name func-name params)
-   (or (:grouping-exceptions call-options)
+   (or *grouping-exceptions*
+       (:grouping-exceptions call-options)
        (:grouping-exceptions options))))
 
 (deftype ClusterEnabledSlackerClient
@@ -304,7 +313,6 @@
          (map #(str nsname "/" %) fnames))
        :meta (meta-data-from-zk zk-conn (:zk-root options)
                                 cluster-name args))}))
-
 
 (defn clustered-slackerc
   "create a cluster enalbed slacker client
