@@ -3,7 +3,7 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :url "https://github.com/sunng87/slacker-cluster"
-  :dependencies [[slacker "0.12.5-SNAPSHOT"]
+  :dependencies [[slacker "0.12.6"]
                  [org.apache.curator/curator-framework "2.7.1"
                   :exclusions [jline]]
                  [org.apache.curator/curator-recipes "2.7.1"]
@@ -15,7 +15,8 @@
                                   [log4j "1.2.17"]
                                   [org.slf4j/slf4j-log4j12 "1.7.10"]]}
              :clojure15 {:dependencies [[org.clojure/clojure "1.5.1"]]}
-             :clojure16 {:dependencies [[org.clojure/clojure "1.6.0"]]}}
+             :clojure16 {:dependencies [[org.clojure/clojure "1.6.0"]]}
+             :clojure17 {:dependencies [[org.clojure/clojure "1.7.0-alpha5"]]}}
   :plugins [[codox "0.8.10"]]
   :global-vars {*warn-on-reflection* true}
   :aliases {"run-example-server" ["with-profile" "default,clojure16,example" "run" "-m" "slacker.example.cluster-server"]
