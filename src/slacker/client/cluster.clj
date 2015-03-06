@@ -133,7 +133,7 @@
                                      valid-results))
                   (if (fn? grouping-results-config)
                     (grouping-results-config valid-results)
-                    (throw (ex-info "Unsupported grouping-results value"))))}))))
+                    (throw (ex-info "Unsupported grouping-results value" {}))))}))))
 
 (deftype GroupedPromise [grouping-fn promises]
   IDeref
