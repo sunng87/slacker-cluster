@@ -14,11 +14,9 @@
   [zk-addr]
   (let [zk-address (split zk-addr #":")
         zk-ip (first zk-address)
-        zk-port (Integer/parseInt (second zk-address))
-        socket (Socket. ^String ^Integer zk-ip zk-port)
-        local-ip (.getHostAddress (.getLocalAddress socket))]
-    (.close socket)
-    local-ip))
+        zk-port (Integer/parseInt (second zk-address))]
+    (with-open [socket (Socket. ^String ^Integer zk-ip zk-port)]
+      (.getHostAddress (.getLocalAddress socket)))))
 
 (defn- create-node
   "get zk connector & node  :persistent?
@@ -153,3 +151,6 @@
     (zk/close zk-conn)
 
     (slacker.server/stop-slacker-server svr)))
+
+(defn get-slacker-server-working-ip [zk-addrs]
+  (auto-detect-ip (first (split zk-addrs #","))))
