@@ -85,7 +85,7 @@
     (.start)))
 
 (defn uncreate-persistent-ephemeral-node [^PersistentEphemeralNode node]
-  (.stop node))
+  (.close node))
 
 (defn start-leader-election [^CuratorFramework conn
                              ^String mutex-path
@@ -96,7 +96,7 @@
     (.start)))
 
 (defn stop-leader-election [^LeaderSelector s]
-  (.stop s))
+  (.close s))
 
 (defn set-data [^CuratorFramework conn
                 ^String path
