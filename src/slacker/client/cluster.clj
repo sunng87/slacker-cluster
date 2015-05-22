@@ -244,7 +244,7 @@
           target-servers (find-server slacker-ns-servers ns-name grouping*)
           target-conns (filter identity (map @slacker-clients target-servers))]
       (if (empty? target-conns)
-        {:cause {:error :not-found}}
+        {:cause {:error :unavailable :servers target-servers}}
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
@@ -280,7 +280,7 @@
                             (count target-servers))
                      (cb (grouping-fn @cb-results))))]
       (if (empty? target-conns)
-        (doto (promise) (deliver {:cause {:error :not-found}}))
+        (doto (promise) (deliver {:cause {:error :unavailable :servers target-servers}}))
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
