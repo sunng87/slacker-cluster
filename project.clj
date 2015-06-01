@@ -4,9 +4,9 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :url "https://github.com/sunng87/slacker-cluster"
   :dependencies [[slacker "0.12.8"]
-                 [org.apache.curator/curator-framework "2.8.0"
+                 [org.apache.curator/curator-framework "2.7.1"
                   :exclusions [jline]]
-                 [org.apache.curator/curator-recipes "2.8.0"]
+                 [org.apache.curator/curator-recipes "2.7.1"]
                  [org.clojure/tools.logging "0.3.1"]]
   :profiles {:example {:source-paths ["examples"]
                        :dependencies [[log4j "1.2.17"]
