@@ -1,8 +1,11 @@
-(ns slacker.test.client.cluster
-  (:use [clojure.test])
-  (:use [slacker.client common cluster])
-  (:use [slacker.serialization])
-  (:use [slacker.utils :only [zk-path]]))
+(ns slacker.client.cluster-test
+  (:require [clojure.test :refer :all]
+            [slacker.client.common :refer :all]
+            [slacker.client.cluster :refer :all]
+            [slacker.serialization :refer :all]
+            [slacker.utils :refer [zk-path]]
+            [slacker.zk :as zk])
+  (:import [slacker.client.cluster ClusterEnabledSlackerClient]))
 
 (deftest test-group-promise []
   (let [prmss (take 5 (repeatedly promise))
@@ -60,3 +63,20 @@
                               [{:result 1}
                                {:result 2}])]
     (is (= 3 (:result r)))))
+
+(deftest sync-call-test
+  (testing "unavialble-value"
+    (let [client (ClusterEnabledSlackerClient. "dummy-cluster"
+                                               nil (atom {}) (atom {}) {})
+          d-ns "dummy-ns"
+          unavailable-value "N/A"]
+      (with-redefs [zk-path (constantly "dummy-path")
+                    zk/children (constantly ["a" "b"])
+                    zk/data (constantly (.getBytes "dummy-dataq" "utf-8"))]
+        (is (= (sync-call-remote client d-ns "dummy-fn" []
+                                 {:grouping (constantly [])
+                                  :unavailable-value unavailable-value})
+               {:result unavailable-value}))
+        (is (= (sync-call-remote client d-ns "dummy-fn" []
+                                 {:grouping (constantly [])})
+               {:cause {:error :unavailable :servers []}}))))))

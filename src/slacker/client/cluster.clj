@@ -133,7 +133,9 @@
                                      valid-results))
                   (if (fn? grouping-results-config)
                     (grouping-results-config valid-results)
-                    (throw (ex-info "Unsupported grouping-results value" {}))))}))))
+                    (throw (ex-info "Unsupported grouping-results value"
+                                    {:grouping-results grouping-results-config
+                                     :results valid-results}))))}))))
 
 (deftype GroupedPromise [grouping-fn promises]
   IDeref
@@ -244,7 +246,9 @@
           target-servers (find-server slacker-ns-servers ns-name grouping*)
           target-conns (filter identity (map @slacker-clients target-servers))]
       (if (empty? target-conns)
-        {:cause {:error :unavailable :servers target-servers}}
+        (if (contains? call-options :unavailable-value)
+          {:result (:unavailable-value call-options)}
+          {:cause {:error :unavailable :servers target-servers}})
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
@@ -280,7 +284,9 @@
                             (count target-servers))
                      (cb (grouping-fn @cb-results))))]
       (if (empty? target-conns)
-        (doto (promise) (deliver {:cause {:error :unavailable :servers target-servers}}))
+        (doto (promise) (deliver (if (contains? call-options :unavailable-value)
+                                   {:result (:unavailable-value call-options)}
+                                   {:cause {:error :unavailable :servers target-servers}})))
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
