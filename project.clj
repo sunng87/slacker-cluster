@@ -3,7 +3,7 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :url "https://github.com/sunng87/slacker-cluster"
-  :dependencies [[slacker "0.12.8"]
+  :dependencies [[slacker "0.12.9-SNAPSHOT"]
                  [org.apache.curator/curator-framework "2.7.1"
                   :exclusions [jline]]
                  [org.apache.curator/curator-recipes "2.7.1"]

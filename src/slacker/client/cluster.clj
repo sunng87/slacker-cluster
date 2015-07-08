@@ -23,6 +23,7 @@
 (defmacro defn-remote
   "cluster enabled defn-remote"
   [sc fname & options]
+  ;; FIXME: these bindings are unused
   (let [fname-str (str fname)
         remote-ns-declared (> (.indexOf fname-str "/") 0)
         {:keys [remote-ns] :or {remote-ns (ns-name *ns*)}} options
