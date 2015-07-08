@@ -49,7 +49,7 @@
                                :random [(rand-nth servers)]
                                :first [(first servers)]
                                :leader [(first servers)]
-                               (if (sequential? grouped-servers)
+                               (if (coll? grouped-servers)
                                  grouped-servers
                                  (vector grouped-servers)))]
         (if-not (empty? selected-servers)
