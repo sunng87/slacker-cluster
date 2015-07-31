@@ -19,8 +19,8 @@
 (defn connect [connect-string options]
   (doto (CuratorFrameworkFactory/newClient
          connect-string
-         (or (:zk-session-timeout options) 5000) ;; session timeout
-         (or (:zk-connect-timeout options) 5000) ;; connect timeout
+         (or (:zk-session-timeout options) 30000) ;; session timeout
+         (or (:zk-connect-timeout options) 10000) ;; connect timeout
          (RetryNTimes. Integer/MAX_VALUE 5000))
     (.start)))
 
