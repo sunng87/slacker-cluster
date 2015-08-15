@@ -176,6 +176,15 @@
        (:grouping-exceptions call-options)
        (:grouping-exceptions options))))
 
+(defrecord ServerRecord [sc data])
+(defn fetch-server-info [addr zk-conn cluster-name options]
+  (let [zk-server-path (utils/zk-path (:zk-root options) cluster-name "servers" addr)]
+    (try (when-let [raw-node (zk/data zk-conn zk-server-path)]
+           (deserialize :clj raw-node :bytes))
+         (catch Exception e
+           (logging/warn e "Error getting server data from zookeeper.")
+           nil))))
+
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
      slacker-clients slacker-ns-servers
@@ -206,9 +215,10 @@
       ;; establish connection if the server is not connected
       (doseq [s servers]
         (when-not (contains? @slacker-clients s)
-          (let [sc (apply create-slackerc s (flatten (vec options)))]
+          (let [sc (apply create-slackerc s (flatten (vec options)))
+                data (fetch-server-info s zk-conn cluster-name options)]
             (logging/info (str "establishing connection to " s))
-            (swap! slacker-clients assoc s sc))))
+            (swap! slacker-clients assoc s (ServerRecord. sc data)))))
       servers))
   (refresh-all-servers [this]
     (logging/infof "starting to refresh online servers list")
@@ -220,9 +230,9 @@
       (doseq [s (keys @slacker-clients)]
         (when-not (contains? servers s)
           (logging/infof "closing connection of %s" s)
-          (let [sc (@slacker-clients s)]
+          (let [server-record (@slacker-clients s)]
             (swap! slacker-clients dissoc s)
-            (slacker.client/close-slackerc sc))))))
+            (slacker.client/close-slackerc (.sc ^ServerRecord server-record)))))))
   (get-connected-servers [this]
     (keys @slacker-clients))
   (get-ns-mappings [this]
@@ -253,7 +263,7 @@
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
-          (let [call-results (pmap #(sync-call-remote @%
+          (let [call-results (pmap #(sync-call-remote @(.sc ^ServerRecord %)
                                                       ns-name
                                                       func-name
                                                       params
@@ -292,7 +302,7 @@
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
           (let [call-prms (mapv
-                           #(async-call-remote @%
+                           #(async-call-remote @(.sc ^ServerRecord %)
                                                ns-name
                                                func-name
                                                params
