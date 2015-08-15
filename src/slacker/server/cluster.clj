@@ -115,6 +115,8 @@
   `(binding [*zk-conn* ~zk-conn]
      ~@body))
 
+(defrecord SlackerClusterServer [svr zk-conn zk-recipes])
+
 (defn start-slacker-server
   "Start a slacker server to expose all public functions under
   a namespace. This function is enhanced for cluster support. You can
@@ -138,10 +140,11 @@
     (zk/register-error-handler zk-conn
                                (fn [msg e]
                                  (logging/warn e "Unhandled Error" msg)))
-    [svr zk-conn zk-recipes]))
 
-(defn stop-slacker-server [server-tuple]
-  (let [[svr zk-conn zk-recipes] server-tuple
+    (SlackerClusterServer. svr zk-conn zk-recipes)))
+
+(defn stop-slacker-server [server]
+  (let [{svr :svr zk-conn :zk-conn zk-recipes :zk-recipes} server
         [zk-ephemeral-nodes leader-selectors] zk-recipes]
     ;; cleanup zookeeper resources
     (doseq [n zk-ephemeral-nodes]
