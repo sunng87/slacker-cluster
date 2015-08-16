@@ -18,7 +18,8 @@
   (get-connected-servers [this])
   (get-ns-mappings [this])
   (delete-ns-mapping [this fname])
-  (delete-cluster-data [this]))
+  (delete-cluster-data [this])
+  (server-data [this server-id]))
 
 (defmacro defn-remote
   "cluster enabled defn-remote"
@@ -242,6 +243,9 @@
   (delete-cluster-data [this]
     (reset! slacker-clients {})
     (reset! slacker-ns-servers {}))
+  (server-data [this addr]
+    (when-let [sr (@slacker-clients addr)]
+      (.data ^ServerRecord sr)))
 
   SlackerClientProtocol
   (sync-call-remote [this ns-name func-name params call-options]

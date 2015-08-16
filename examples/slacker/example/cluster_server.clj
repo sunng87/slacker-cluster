@@ -15,7 +15,7 @@
                           (+ 10000 (rand-int 10000)))
                         :cluster {:zk "127.0.0.1:2181"
                                   :name "example-cluster"}
-                        :label :example
+                        :server-data {:label :example}
                         :interceptors (interceptors [log-function-calls])
                         :zk-session-timeout 10000))
 (println "Slacker example server (cluster enabled) started.")

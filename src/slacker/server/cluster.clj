@@ -63,7 +63,7 @@
 
 (defn publish-cluster
   "publish server information to zookeeper as cluster for client"
-  [cluster port ns-names funcs-map label]
+  [cluster port ns-names funcs-map server-data]
   (let [cluster-name (cluster :name)
         zk-root (cluster :zk-root "/slacker/cluster/")
         server-node (str (or (cluster :node)
@@ -71,7 +71,7 @@
                          ":" port)
         server-path (utils/zk-path zk-root cluster-name
                                    "servers" server-node)
-        server-path-data (serialize :clj {:label label} :bytes)
+        server-path-data (serialize :clj server-data :bytes)
         funcs (keys funcs-map)
 
         ephemeral-servers-node-paths (conj (map #(utils/zk-path zk-root
@@ -128,7 +128,7 @@
                    exposed-ns
                    port
                    options)
-        {:keys [cluster label]
+        {:keys [cluster server-data]
          :as options} options
         exposed-ns (if (coll? exposed-ns) exposed-ns [exposed-ns])
         funcs (apply merge
@@ -137,7 +137,7 @@
         zk-recipes (when-not (nil? cluster)
                      (with-zk zk-conn
                        (publish-cluster cluster port
-                                        (map ns-name exposed-ns) funcs label)))]
+                                        (map ns-name exposed-ns) funcs server-data)))]
     (zk/register-error-handler zk-conn
                                (fn [msg e]
                                  (logging/warn e "Unhandled Error" msg)))
