@@ -63,12 +63,15 @@
 
 (defn publish-cluster
   "publish server information to zookeeper as cluster for client"
-  [cluster port ns-names funcs-map]
+  [cluster port ns-names funcs-map server-data]
   (let [cluster-name (cluster :name)
         zk-root (cluster :zk-root "/slacker/cluster/")
         server-node (str (or (cluster :node)
                              (auto-detect-ip (first (split (:zk cluster) #","))))
                          ":" port)
+        server-path (utils/zk-path zk-root cluster-name
+                                   "servers" server-node)
+        server-path-data (serialize :clj server-data :bytes)
         funcs (keys funcs-map)
 
         ephemeral-servers-node-paths (conj (map #(utils/zk-path zk-root
@@ -77,10 +80,7 @@
                                                                 %
                                                                 server-node)
                                                 ns-names)
-                                           (utils/zk-path zk-root
-                                                          cluster-name
-                                                          "servers"
-                                                          server-node))]
+                                           server-path)]
 
     ;; persistent nodes
     (create-node *zk-conn* (utils/zk-path zk-root cluster-name "servers")
@@ -107,6 +107,7 @@
     (let [ephemeral-nodes (doall (map #(zk/create-persistent-ephemeral-node *zk-conn* %)
                                       ephemeral-servers-node-paths))
           leader-selectors (select-leaders zk-root cluster-name ns-names server-node)]
+      (zk/set-data *zk-conn* server-path server-path-data)
       [ephemeral-nodes leader-selectors])))
 
 (defmacro with-zk
@@ -114,6 +115,8 @@
   [zk-conn & body]
   `(binding [*zk-conn* ~zk-conn]
      ~@body))
+
+(defrecord SlackerClusterServer [svr zk-conn zk-recipes])
 
 (defn start-slacker-server
   "Start a slacker server to expose all public functions under
@@ -125,7 +128,7 @@
                    exposed-ns
                    port
                    options)
-        {:keys [cluster]
+        {:keys [cluster server-data]
          :as options} options
         exposed-ns (if (coll? exposed-ns) exposed-ns [exposed-ns])
         funcs (apply merge
@@ -134,14 +137,15 @@
         zk-recipes (when-not (nil? cluster)
                      (with-zk zk-conn
                        (publish-cluster cluster port
-                                        (map ns-name exposed-ns) funcs)))]
+                                        (map ns-name exposed-ns) funcs server-data)))]
     (zk/register-error-handler zk-conn
                                (fn [msg e]
                                  (logging/warn e "Unhandled Error" msg)))
-    [svr zk-conn zk-recipes]))
 
-(defn stop-slacker-server [server-tuple]
-  (let [[svr zk-conn zk-recipes] server-tuple
+    (SlackerClusterServer. svr zk-conn zk-recipes)))
+
+(defn stop-slacker-server [server]
+  (let [{svr :svr zk-conn :zk-conn zk-recipes :zk-recipes} server
         [zk-ephemeral-nodes leader-selectors] zk-recipes]
     ;; cleanup zookeeper resources
     (doseq [n zk-ephemeral-nodes]
