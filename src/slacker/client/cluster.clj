@@ -317,7 +317,7 @@
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)]
-      (slacker.client/close-slackerc s))
+      (slacker.client/close-slackerc (.sc s)))
     (reset! slacker-clients {})
     (reset! slacker-ns-servers {}))
   (ping [this]
