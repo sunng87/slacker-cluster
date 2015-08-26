@@ -89,7 +89,8 @@
     (do
       (doseq [n (keys (get-ns-mappings sc))]
         (refresh-associated-servers sc n))
-      (refresh-all-servers sc))))
+      (when (not-empty (get-connected-servers sc))
+        (refresh-all-servers sc)))))
 
 (defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
   (let [fnode (utils/zk-path zk-root cluster-name "functions" fname)]
