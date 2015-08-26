@@ -77,11 +77,12 @@
         (forPath path ^bytes data))))
 
 (defn create-persistent-ephemeral-node [^CuratorFramework conn
-                                        ^String path]
+                                        ^String path
+                                        ^bytes data]
   (doto (PersistentEphemeralNode. conn
                                   PersistentEphemeralNode$Mode/EPHEMERAL
                                   path
-                                  (byte-array 0))
+                                  (or data (byte-array 0)))
     (.start)))
 
 (defn uncreate-persistent-ephemeral-node [^PersistentEphemeralNode node]

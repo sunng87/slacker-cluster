@@ -219,7 +219,7 @@
         (when-not (contains? @slacker-clients s)
           (let [sc (apply create-slackerc s (flatten (vec options)))
                 data (fetch-server-info s zk-conn cluster-name options)]
-            (logging/info (str "establishing connection to " s))
+            (logging/info "establishing connection to " s "with data" data)
             (swap! slacker-clients assoc s (ServerRecord. sc data)))))
       servers))
   (refresh-all-servers [this]

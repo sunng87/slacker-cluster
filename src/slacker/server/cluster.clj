@@ -74,13 +74,9 @@
         server-path-data (serialize :clj server-data :bytes)
         funcs (keys funcs-map)
 
-        ephemeral-servers-node-paths (conj (map #(utils/zk-path zk-root
-                                                                cluster-name
-                                                                "namespaces"
-                                                                %
-                                                                server-node)
-                                                ns-names)
-                                           server-path)]
+        ns-path-fn (fn [p] (utils/zk-path zk-root cluster-name "namespaces" p server-node))
+        ephemeral-servers-node-paths (conj (map #(vector (ns-path-fn %) nil) ns-names)
+                                           [server-path server-path-data])]
 
     ;; persistent nodes
     (create-node *zk-conn* (utils/zk-path zk-root cluster-name "servers")
@@ -104,10 +100,9 @@
                            [:name :doc :arglists])
                           :bytes)))
 
-    (let [ephemeral-nodes (doall (map #(zk/create-persistent-ephemeral-node *zk-conn* %)
+    (let [ephemeral-nodes (doall (map #(zk/create-persistent-ephemeral-node *zk-conn* (first %) (second %))
                                       ephemeral-servers-node-paths))
           leader-selectors (select-leaders zk-root cluster-name ns-names server-node)]
-      (zk/set-data *zk-conn* server-path server-path-data)
       [ephemeral-nodes leader-selectors])))
 
 (defmacro with-zk
