@@ -1,5 +1,5 @@
 (ns slacker.zk
-  (:import [org.apache.curator.retry RetryNTimes]
+  (:import [org.apache.curator.retry RetryForever]
            [org.apache.curator.framework
             CuratorFramework
             CuratorFrameworkFactory]
@@ -21,7 +21,7 @@
          connect-string
          (or (:zk-session-timeout options) 15000) ;; session timeout
          (or (:zk-connect-timeout options) 10000) ;; connect timeout
-         (RetryNTimes. Integer/MAX_VALUE 5000))
+         (RetryForever. 5000))
     (.start)))
 
 (defn wrap-watcher [watcher-fn]
