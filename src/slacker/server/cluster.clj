@@ -100,7 +100,9 @@
                            [:name :doc :arglists])
                           :bytes)))
 
-    (let [ephemeral-nodes (doall (map #(zk/create-persistent-ephemeral-node *zk-conn* (first %) (second %))
+    (let [ephemeral-nodes (doall (map #(do
+                                         (try (zk/delete *zk-conn* (first %)) (catch Exception _))
+                                         (zk/create-persistent-ephemeral-node *zk-conn* (first %) (second %)))
                                       ephemeral-servers-node-paths))
           leader-selectors (select-leaders zk-root cluster-name ns-names server-node)]
       [ephemeral-nodes leader-selectors])))
