@@ -7,14 +7,18 @@ This is the cluster module for
 framework.
 
 [![Build Status](https://travis-ci.org/sunng87/slacker-cluster.png?branch=master)](https://travis-ci.org/sunng87/slacker-cluster)
-[![Dependency Status](https://www.versioneye.com/user/projects/5358b3f3fe0d07391d0000d2/badge.png)](https://www.versioneye.com/user/projects/5358b3f3fe0d07391d0000d2)
+[![Dependency
+Status](https://www.versioneye.com/user/projects/5358b3f3fe0d07391d0000d2/badge.png)](https://www.versioneye.com/user/projects/5358b3f3fe0d07391d0000d2)
+[![Clojars](https://img.shields.io/clojars/v/slacker/slacker-cluster.svg)](https://clojars.org/slacker/slacker-cluster)
+[![License](https://img.shields.io/badge/license-eclipse-blue.svg)](https://github.com/sunng87/slacker-cluster/blob/master/LICENSE)
 
-With help from ZooKeeper, slacker has a solution for high
-availability and load balancing. You can have several slacker servers
-in a cluster serving functions. And the clustered slacker client will
-randomly select one of these server to invoke. Once a server is added
-to or removed from the cluster, the client will automatically
-establish/destroy the connection to it.
+Base on service discovery by ZooKeeper, slacker has a solution for
+high availability and load balancing. You can have several slacker servers
+in a cluster serving namespaces of functions. The cluster-enabled
+slacker client will randomly choose one (or several, based on your
+grouping function) of these servers to call. Once a server is added
+to or removed from the cluster, the client will received notification
+from zookeeper and establish/destroy the connection to the server.
 
 To create such a slacker cluster, you have to deploy at least one zookeeper
 instance in your system.
@@ -26,8 +30,8 @@ instance in your system.
 ## Cluster Enabled Slacker Server
 
 On the server side, using the server starter function from
-`slacker.server.cluster`, add an option `:cluster` and provide some
-information.
+`slacker.server.cluster`, add an option `:cluster` and provide your
+cluster information.
 
 ``` clojure
 (use 'slacker.server.cluster)
@@ -44,6 +48,9 @@ Cluster information here:
   here, slacker will try to detect server IP by connecting to zk,
   on which we assume that your slacker server are bound on the same
   network with zookeeper)
+* `:server-data` allows you to set some small amount, server specific
+  data that will be available to client grouping function to choose
+  server.
 
 ## Cluster Enabled Slacker Client
 
@@ -56,8 +63,9 @@ of a particular slacker server. Use the `clustered-slackerc`:
 (use-remote 'sc 'slapi)
 ```
 
-*Important*: You should make sure to use the `use-remote` and `defn-remote` from
-`slacker.client.cluster` instead of `slacker.client`.
+*Important*: You should make sure to use the `use-remote` and
+`defn-remote` from `slacker.client.cluster` instead of
+`slacker.client`.
 
 ## Client Grouping
 
@@ -76,7 +84,8 @@ The grouping option gives you total control of this behavior.
 
 The first three arguments represent your current invocation. And you
 can return one or more servers based on the information and your
-business logic.
+business logic. Server specific data is available from `(server-data
+client "server-addr")`.
 
 You can also return constant value:
 
@@ -124,6 +133,10 @@ You can also define `:grouping` and `:grouping-results` function at
   :grouping-results :single)
 ```
 
+If there is no server in the cluster provides the function, you can
+add `:unavailable-value` option on `defn-remote` for return value on
+this situation.
+
 ## Examples
 
 There is a cluster example in the source code. To run the server,
@@ -142,11 +155,6 @@ On another terminal, you can run the example client:
     lein run-example-client
 
 By checking logs, you can trace the calls on each server instance.
-
-## Contributors
-
-* [lbt05](https://github.com/lbt05)
-* [johnchapin](https://github.com/johnchapin)
 
 ## License
 
