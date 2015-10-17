@@ -105,7 +105,7 @@
                                          (zk/create-persistent-ephemeral-node *zk-conn* (first %) (second %)))
                                       ephemeral-servers-node-paths))
           leader-selectors (select-leaders zk-root cluster-name ns-names server-node)]
-      [ephemeral-nodes leader-selectors])))
+      [server-path ephemeral-nodes leader-selectors])))
 
 (defmacro with-zk
   "publish server information to specifized zookeeper for client"
@@ -113,7 +113,15 @@
   `(binding [*zk-conn* ~zk-conn]
      ~@body))
 
-(defrecord SlackerClusterServer [svr zk-conn zk-recipes])
+(defrecord SlackerClusterServer [svr zk-conn zk-data])
+
+(defn set-server-data!
+  "Update server data for this server, clients will be notified"
+  [slacker-server data]
+  (let [serialized-data (serialize :clj data :bytes)
+        data-path (first (.zk-data slacker-server))]
+    (with-zk (.zk-conn slacker-server)
+      (zk/set-data *zk-conn* data-path serialized-data))))
 
 (defn start-slacker-server
   "Start a slacker server to expose all public functions under
@@ -131,19 +139,19 @@
         funcs (apply merge
                      (map slacker.server/ns-funcs exposed-ns))
         zk-conn (zk/connect (:zk cluster) options)
-        zk-recipes (when-not (nil? cluster)
-                     (with-zk zk-conn
-                       (publish-cluster cluster port
-                                        (map ns-name exposed-ns) funcs server-data)))]
+        zk-data (when-not (nil? cluster)
+                  (with-zk zk-conn
+                    (publish-cluster cluster port
+                                     (map ns-name exposed-ns) funcs server-data)))]
     (zk/register-error-handler zk-conn
                                (fn [msg e]
                                  (logging/warn e "Unhandled Error" msg)))
 
-    (SlackerClusterServer. svr zk-conn zk-recipes)))
+    (SlackerClusterServer. svr zk-conn zk-data)))
 
 (defn stop-slacker-server [server]
-  (let [{svr :svr zk-conn :zk-conn zk-recipes :zk-recipes} server
-        [zk-ephemeral-nodes leader-selectors] zk-recipes]
+  (let [{svr :svr zk-conn :zk-conn zk-data :zk-data} server
+        [_ zk-ephemeral-nodes leader-selectors] zk-data]
     ;; cleanup zookeeper resources
     (doseq [n zk-ephemeral-nodes]
       (zk/uncreate-persistent-ephemeral-node n))
