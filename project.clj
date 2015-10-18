@@ -7,9 +7,7 @@
                   :exclusions [jline]]
                  [org.apache.curator/curator-recipes "2.9.0"]
                  [org.clojure/tools.logging "0.3.1"]]
-  :profiles {:example {:source-paths ["examples"]
-                       :dependencies [[log4j "1.2.17"]
-                                      [org.slf4j/slf4j-log4j12 "1.7.12"]]}
+  :profiles {:example {:source-paths ["examples"]}
              :dev {:dependencies [[org.clojure/clojure "1.7.0"]
                                   [slacker "0.13.0"]
                                   [log4j "1.2.17"]
@@ -20,8 +18,8 @@
              :clojure18 {:dependencies [[org.clojure/clojure "1.8.0-beta1"]]}}
   :plugins [[codox "0.8.15"]]
   :global-vars {*warn-on-reflection* true}
-  :aliases {"run-example-server" ["with-profile" "default,clojure16,example" "run" "-m" "slacker.example.cluster-server"]
-            "run-example-client" ["with-profile" "default,clojure16,example" "run" "-m" "slacker.example.cluster-client"]
+  :aliases {"run-example-server" ["with-profile" "default,dev,clojure17,example" "run" "-m" "slacker.example.cluster-server"]
+            "run-example-client" ["with-profile" "default,dev,clojure17,example" "run" "-m" "slacker.example.cluster-client"]
             "test-all" ["with-profile" "default,clojure15:default,clojure16" "test"]}
   :deploy-repositories {"releases" :clojars}
   :jvm-opts ["-Xmx256m"])
