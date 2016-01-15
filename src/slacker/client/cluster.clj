@@ -196,7 +196,7 @@
            (logging/warn e "Error getting server data from zookeeper.")
            nil))))
 
-(defn- try-update-server-data! [e scc]
+(defn- try-update-server-data! [e ^ClusterEnabledSlackerClient scc]
   (when-let [server-addr (second (re-matches #"/.+/servers/(.+?)" (:path e)))]
     (logging/debugf "received notification for server data change on %s" server-addr)
     (let [zk-conn (.zk-conn scc)
@@ -206,7 +206,7 @@
       (logging/infof "Getting updated server-data for %s: %s" server-addr new-data)
       (swap! (.slacker-clients scc) (fn [clients-snapshot]
                                       (if-let [old-sc (get clients-snapshot server-addr)]
-                                        (let [sub-sc (.sc old-sc)]
+                                        (let [sub-sc (.sc ^ServerRecord old-sc)]
                                           (assoc clients-snapshot server-addr (ServerRecord. sub-sc new-data)))
                                         clients-snapshot))))))
 
@@ -341,7 +341,7 @@
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)]
-      (slacker.client/close-slackerc (.sc s)))
+      (slacker.client/close-slackerc (.sc ^ServerRecord s)))
     (reset! slacker-clients {})
     (reset! slacker-ns-servers {}))
   (ping [this]
