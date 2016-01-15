@@ -76,7 +76,7 @@ override this behavior, for example, run a function on all servers.
 The grouping option gives you total control of this behavior.
 
 ```clojure
-(defn my-grouping [ns-name fn-name params servers]
+(defn my-grouping [ns-name fn-name params slacker-client servers]
   ...)
 
 (clustered-slackerc "cluster-name" "127.0.0.1:2181" :grouping my-grouping)
