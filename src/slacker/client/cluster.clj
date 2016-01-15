@@ -12,6 +12,8 @@
 (def ^:dynamic *grouping-results* nil)
 (def ^:dynamic *grouping-exceptions* nil)
 
+(declare try-update-server-data!)
+
 (defprotocol CoordinatorAwareClient
   (refresh-associated-servers [this ns])
   (refresh-all-servers [this])
@@ -71,17 +73,23 @@
     nil))
 
 (defn- on-zk-events [e sc]
-  (logging/warn "getting zookeeper event" e)
+  (logging/info "getting zookeeper event" e)
   (cond
     ;; zookeeper path change, refresh servers
     (not= (:event-type e) :None)
-    (if (.endsWith ^String (:path e) "servers")
+    (cond
       ;; event on `servers` node
-      (clients-callback e sc)
+      (.endsWith ^String (:path e) "servers") (clients-callback e sc)
+
+      ;; event on `servers/addr`, server data update
+      (and
+       (= :NodeDataChanged (:event-type e))
+       (> (.indexOf ^String (:path e) "servers") 0)) (try-update-server-data! e sc)
+
       ;; event on `namespaces` nodes
-      (let [matcher (re-matches #"/.+/namespaces/?(.*?)(/.*)?" (:path e))]
-        (if-not (nil? matcher)
-          (ns-callback e sc (second matcher)))))
+      :else
+      (when-let [matcher (re-matches #"/.+/namespaces/?(.*?)(/.*)?" (:path e))]
+        (ns-callback e sc (second matcher))))
 
     ;; zookeeper watcher lost, reattach watchers
     (and (= (:event-type e) :None)
@@ -179,13 +187,28 @@
        (:grouping-exceptions options))))
 
 (defrecord ServerRecord [sc data])
-(defn fetch-server-info [addr zk-conn cluster-name options]
+(defn fetch-server-data [addr zk-conn cluster-name options]
   (let [zk-server-path (utils/zk-path (:zk-root options) cluster-name "servers" addr)]
-    (try (when-let [raw-node (zk/data zk-conn zk-server-path)]
+    ;; added watcher for server data changes
+    (try (when-let [raw-node (zk/data zk-conn zk-server-path :watch? true)]
            (deserialize :clj raw-node :bytes))
          (catch Exception e
            (logging/warn e "Error getting server data from zookeeper.")
            nil))))
+
+(defn- try-update-server-data! [e scc]
+  (when-let [server-addr (second (re-matches #"/.+/servers/(.+?)" (:path e)))]
+    (logging/debugf "received notification for server data change on %s" server-addr)
+    (let [zk-conn (.zk-conn scc)
+          cluster-name (.cluster-name scc)
+          options (.options scc)
+          new-data (fetch-server-data server-addr zk-conn cluster-name options)]
+      (logging/infof "Getting updated server-data for %s: %s" server-addr new-data)
+      (swap! (.slacker-clients scc) (fn [clients-snapshot]
+                                      (if-let [old-sc (get clients-snapshot server-addr)]
+                                        (let [sub-sc (.sc old-sc)]
+                                          (assoc clients-snapshot server-addr (ServerRecord. sub-sc new-data)))
+                                        clients-snapshot))))))
 
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
@@ -218,7 +241,7 @@
       (doseq [s servers]
         (when-not (contains? @slacker-clients s)
           (let [sc (apply create-slackerc s (flatten (vec options)))
-                data (fetch-server-info s zk-conn cluster-name options)]
+                data (fetch-server-data s zk-conn cluster-name options)]
             (logging/info "establishing connection to " s "with data" data)
             (swap! slacker-clients assoc s (ServerRecord. sc data)))))
       servers))
