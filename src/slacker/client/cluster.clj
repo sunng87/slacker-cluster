@@ -196,20 +196,6 @@
            (logging/warn e "Error getting server data from zookeeper.")
            nil))))
 
-(defn- try-update-server-data! [e ^ClusterEnabledSlackerClient scc]
-  (when-let [server-addr (second (re-matches #"/.+/servers/(.+?)" (:path e)))]
-    (logging/debugf "received notification for server data change on %s" server-addr)
-    (let [zk-conn (.zk-conn scc)
-          cluster-name (.cluster-name scc)
-          options (.options scc)
-          new-data (fetch-server-data server-addr zk-conn cluster-name options)]
-      (logging/infof "Getting updated server-data for %s: %s" server-addr new-data)
-      (swap! (.slacker-clients scc) (fn [clients-snapshot]
-                                      (if-let [old-sc (get clients-snapshot server-addr)]
-                                        (let [sub-sc (.sc ^ServerRecord old-sc)]
-                                          (assoc clients-snapshot server-addr (ServerRecord. sub-sc new-data)))
-                                        clients-snapshot))))))
-
 (deftype ClusterEnabledSlackerClient
     [cluster-name zk-conn
      slacker-clients slacker-ns-servers
@@ -358,6 +344,20 @@
          (map #(str nsname "/" %) fnames))
        :meta (meta-data-from-zk zk-conn (:zk-root options)
                                 cluster-name args))}))
+
+(defn- try-update-server-data! [e ^ClusterEnabledSlackerClient scc]
+  (when-let [server-addr (second (re-matches #"/.+/servers/(.+?)" (:path e)))]
+    (logging/debugf "received notification for server data change on %s" server-addr)
+    (let [zk-conn (.zk-conn scc)
+          cluster-name (.cluster-name scc)
+          options (.options scc)
+          new-data (fetch-server-data server-addr zk-conn cluster-name options)]
+      (logging/infof "Getting updated server-data for %s: %s" server-addr new-data)
+      (swap! (.slacker-clients scc) (fn [clients-snapshot]
+                                      (if-let [old-sc (get clients-snapshot server-addr)]
+                                        (let [sub-sc (.sc ^ServerRecord old-sc)]
+                                          (assoc clients-snapshot server-addr (ServerRecord. sub-sc new-data)))
+                                        clients-snapshot))))))
 
 (defn clustered-slackerc
   "create a cluster enalbed slacker client
