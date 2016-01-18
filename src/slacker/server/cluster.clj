@@ -159,6 +159,8 @@
       (zk/stop-leader-election n))
     (zk/close zk-conn)
 
+    ;; TODO: wait some time to allow zk to notify all clients?
+
     (slacker.server/stop-slacker-server svr)))
 
 (defn get-slacker-server-working-ip [zk-addrs]
