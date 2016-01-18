@@ -43,10 +43,10 @@
 (defn- create-slackerc [connection-info & options]
   (apply slacker.client/slackerc connection-info options))
 
-(defn- find-server [slacker-ns-servers ns-name grouping]
+(defn- find-server [slacker-client slacker-ns-servers ns-name grouping]
   (let [servers (@slacker-ns-servers ns-name)]
     (if-not (empty? servers)
-      (let [grouped-servers (grouping servers)
+      (let [grouped-servers (grouping slacker-client servers)
             selected-servers (case grouped-servers
                                :all servers
                                :random [(rand-nth servers)]
@@ -268,7 +268,7 @@
     (let [[grouping* grouping-results* grouping-exceptions*]
           (parse-grouping-options options call-options
                                   ns-name func-name params)
-          target-servers (find-server slacker-ns-servers ns-name grouping*)
+          target-servers (find-server this slacker-ns-servers ns-name grouping*)
           target-conns (filter identity (map @slacker-clients target-servers))]
       (if (empty? target-conns)
         (if (contains? call-options :unavailable-value)
