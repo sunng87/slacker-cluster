@@ -358,11 +358,11 @@
                       * `(fn [ns fname params])` a function that returns keywords above
                       Note that if you use :vector or :map, you will break default behavior of
                       the function
-  * grouping-exception: how to deal with the exceptions when calling functions
-                        on multiple instance.
-                        * `:all` the API throws exception when exception
-                                   is thrown on every instance
-                        * `:any` the API throws exception when any instance throws exception"
+  * grouping-exceptions: how to deal with the exceptions when calling functions
+                         on multiple instance.
+                         * `:all` the API throws exception when exception
+                                    is thrown on every instance
+                         * `:any` the API throws exception when any instance throws exception"
 
   [cluster-name zk-server & {:keys [zk-root grouping grouping-results
                                     grouping-exceptions ping-interval
