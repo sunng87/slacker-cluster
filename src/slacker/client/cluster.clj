@@ -296,8 +296,8 @@
     (let [[grouping* grouping-results* grouping-exceptions*]
           (parse-grouping-options options call-options
                                   ns-name func-name params)
-          target-servers (find-server slacker-ns-servers ns-name
-                                     (partial grouping* ns-name func-name params))
+          target-servers (find-server this slacker-ns-servers ns-name
+                                      (partial grouping* ns-name func-name params))
           target-conns (filter identity (map @slacker-clients target-servers))
           grouping-fn (partial group-call-results
                                grouping-results*
