@@ -370,7 +370,7 @@
                 * `:first` always choose the first server available
                 * `:random` choose a server by random (default)
                 * `:all` call function on all servers
-                * `(fn [ns fname params servers])` specify a function to choose.
+                * `(fn [ns fname params slacker-client servers])` specify a function to choose.
                    you can also return :random or :all in this function
   * grouping-results: when you call functions on multiple server, you can specify
                       how many results return for the call. possible values:
