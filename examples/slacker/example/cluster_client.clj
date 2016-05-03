@@ -1,7 +1,7 @@
 (ns slacker.example.cluster-client
   (:use [slacker.common])
   (:use [slacker.client.cluster])
-  (:use [slacker.client :only [close-slackerc]]))
+  (:use [slacker.client :only [close-slackerc shutdown-slacker-client-factory]]))
 
 (def sc (clustered-slackerc "example-cluster" "127.0.0.1:2181"))
 
@@ -22,18 +22,16 @@
   :grouping-results :map
   :async? true
   :callback (fn [e r]
-              (println r)))
+              (println "++++" r)))
 
 (defn -main [& args]
-  (binding [*debug* true]
-    (println (timestamp))
-    (println (rand-ints 10))
-    (println @(async-timestamp)))
-
   (dotimes [_ 100] (timestamp))
 
+  (println (echo 23))
   (println (all-timestamp))
   (async-timestamp)
+  (try (make-error) (catch Exception e (println "Expected exception:" (ex-data e))))
 
   (close-slackerc sc)
-  (System/exit 0))
+  (shutdown-slacker-client-factory)
+  (shutdown-agents))

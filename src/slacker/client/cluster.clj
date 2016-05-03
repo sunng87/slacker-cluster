@@ -304,10 +304,14 @@
                                grouping-exceptions*
                                target-servers)
           cb-results (atom [])
-          sys-cb (fn [result]
-                   (when (= (count (swap! cb-results conj result))
-                            (count target-servers))
-                     (cb (grouping-fn @cb-results))))]
+          target-servers-count (count target-servers)
+          sys-cb (when cb
+                   (fn [excp data]
+                     (when (= (count (swap! cb-results conj
+                                            {:cause excp :result data}))
+                              target-servers-count)
+                       (let [grouped-results (grouping-fn @cb-results)]
+                         (cb (:cause grouped-results) (:result grouped-results))))))]
       (if (empty? target-conns)
         (doto (promise) (deliver (if (contains? call-options :unavailable-value)
                                    {:result (:unavailable-value call-options)}
