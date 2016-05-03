@@ -9,7 +9,8 @@
             req))
 
 (defn -main [& args]
-  (start-slacker-server (the-ns 'slacker.example.api)
+  (start-slacker-server [(the-ns 'slacker.example.api)
+                         {"slacker.example.api2" {"echo2" (fn [& args] args)}}]
                         (if (first args)
                           (Integer/valueOf (first args))
                           (+ 10000 (rand-int 10000)))

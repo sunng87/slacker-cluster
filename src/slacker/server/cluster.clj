@@ -123,26 +123,26 @@
     (with-zk (.zk-conn slacker-server)
       (zk/set-data *zk-conn* data-path serialized-data))))
 
+(defn extract-ns [fn-coll]
+  (mapcat #(if (map? %) (keys %) [(ns-name %)]) fn-coll))
+
 (defn start-slacker-server
   "Start a slacker server to expose all public functions under
   a namespace. This function is enhanced for cluster support. You can
   supply a zookeeper instance and a cluster name to the :cluster option
   to register this server as a node of the cluster."
-  [exposed-ns port & options]
+  [fn-coll port & options]
   (let [svr (apply slacker.server/start-slacker-server
-                   exposed-ns
-                   port
-                   options)
+                   fn-coll port options)
         {:keys [cluster server-data]
          :as options} options
-        exposed-ns (if (coll? exposed-ns) exposed-ns [exposed-ns])
-        funcs (apply merge
-                     (map slacker.server/ns-funcs exposed-ns))
+        fn-coll (if (vector? fn-coll) fn-coll [fn-coll])
+        funcs (apply merge (map slacker.server/parse-funcs fn-coll))
         zk-conn (zk/connect (:zk cluster) options)
         zk-data (when-not (nil? cluster)
                   (with-zk zk-conn
-                    (publish-cluster cluster port
-                                     (map ns-name exposed-ns) funcs server-data)))]
+                    (publish-cluster cluster port (extract-ns fn-coll)
+                                     funcs server-data)))]
     (zk/register-error-handler zk-conn
                                (fn [msg e]
                                  (logging/warn e "Unhandled Error" msg)))
