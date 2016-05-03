@@ -27,6 +27,9 @@ instance in your system.
 
 ![latest version on clojars](https://clojars.org/slacker/slacker-cluster/latest-version.svg)
 
+* Stable: 0.13.x
+* Development: 0.14.0-SNAPSHOT
+
 ## Cluster Enabled Slacker Server
 
 On the server side, using the server starter function from
