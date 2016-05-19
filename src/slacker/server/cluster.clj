@@ -149,18 +149,20 @@
 
     (SlackerClusterServer. svr zk-conn zk-data)))
 
-(defn stop-slacker-server [server]
-  (let [{svr :svr zk-conn :zk-conn zk-data :zk-data} server
+(defn unpublish-cluster! [server]
+  (let [{zk-data :zk-data} server
         [_ zk-ephemeral-nodes leader-selectors] zk-data]
-    ;; cleanup zookeeper resources
     (doseq [n zk-ephemeral-nodes]
       (zk/uncreate-persistent-ephemeral-node n))
     (doseq [n leader-selectors]
-      (zk/stop-leader-election n))
+      (zk/stop-leader-election n))))
+
+(defn stop-slacker-server [server]
+  (unpublish-cluster! server)
+  (let [{svr :svr zk-conn :zk-conn} server]
     (zk/close zk-conn)
 
     ;; TODO: wait some time to allow zk to notify all clients?
-
     (slacker.server/stop-slacker-server svr)))
 
 (defn get-slacker-server-working-ip [zk-addrs]

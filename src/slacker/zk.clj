@@ -97,7 +97,10 @@
     (.start)))
 
 (defn stop-leader-election [^LeaderSelector s]
-  (.close s))
+  (try (.close s)
+       (catch IllegalStateException _
+         ;; just ignore duplicated close
+         )))
 
 (defn set-data [^CuratorFramework conn
                 ^String path
