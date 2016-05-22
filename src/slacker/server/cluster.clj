@@ -5,7 +5,7 @@
   (:require [slacker.server])
   (:require [slacker.utils :as utils])
   (:require [clojure.tools.logging :as logging])
-  (:import [java.net.Socket]
+  (:import [java.net Socket]
            [org.apache.curator CuratorZookeeperClient]
            [org.apache.curator.framework.recipes.nodes PersistentNode]))
 
