@@ -8,7 +8,12 @@
             CuratorListener
             CuratorEvent
             CuratorEventType
-            UnhandledErrorListener]
+            UnhandledErrorListener
+            ExistsBuilder
+            GetDataBuilder
+            GetChildrenBuilder
+            SetDataBuilder
+            CreateBuilder]
            [org.apache.curator.framework.recipes.nodes
             PersistentEphemeralNode PersistentEphemeralNode$Mode]
            [org.apache.curator.framework.recipes.leader
@@ -109,23 +114,25 @@
   (wrap-stat
    (let [sdb (.setData conn)
          sdb (if (not (nil? version)) (.withVersion sdb version) sdb)]
-     (.forPath sdb  path data))))
+     (.forPath ^SetDataBuilder sdb path data))))
 
 (defn children [^CuratorFramework conn
                 ^String path
                 & {:keys [watch? watcher]}]
   (let [gcb (.getChildren conn)
         gcb (if watch? (.watched gcb) gcb)
-        gcb (if watcher (.usingWatcher gcb (wrap-watcher watcher)) gcb)]
-    (.forPath gcb path)))
+        gcb (if watcher (.usingWatcher ^GetChildrenBuilder gcb
+                                       ^CuratorWatcher (wrap-watcher watcher)) gcb)]
+    (.forPath ^GetChildrenBuilder gcb path)))
 
 (defn data [^CuratorFramework conn
             ^String path
             & {:keys [watch? watcher]}]
   (let [gcb (.getData conn)
         gcb (if watch? (.watched gcb) gcb)
-        gcb (if watcher (.usingWatcher gcb (wrap-watcher watcher)) gcb)]
-    (.forPath gcb path)))
+        gcb (if watcher (.usingWatcher ^GetDataBuilder gcb
+                                       ^CuratorWatcher(wrap-watcher watcher)) gcb)]
+    (.forPath ^GetDataBuilder gcb path)))
 
 (defn delete [^CuratorFramework conn
               ^String path]
@@ -146,8 +153,9 @@
   (wrap-stat
    (let [gcb (.checkExists conn)
          gcb (if watch? (.watched gcb) gcb)
-         gcb (if watcher (.usingWatcher gcb (wrap-watcher watcher)) gcb)]
-     (.forPath gcb path))))
+         gcb (if watcher (.usingWatcher ^ExistsBuilder gcb
+                                        ^CuratorWatcher (wrap-watcher watcher)) gcb)]
+     (.forPath ^ExistsBuilder gcb path))))
 
 (defn close [^CuratorFramework conn]
   (.close conn))
@@ -160,7 +168,7 @@
                      (eventReceived [this conn* event]
                        (when (= (.getType ^CuratorEvent event)
                                 CuratorEventType/WATCHED)
-                         (.process (wrap-watcher watcher-fn)
+                         (.process ^CuratorWatcher (wrap-watcher watcher-fn)
                                    (.getWatchedEvent ^CuratorEvent event))))))))
 
 (defn register-error-handler [^CuratorFramework conn
