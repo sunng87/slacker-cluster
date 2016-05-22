@@ -5,7 +5,9 @@
   (:require [slacker.server])
   (:require [slacker.utils :as utils])
   (:require [clojure.tools.logging :as logging])
-  (:import java.net.Socket))
+  (:import [java.net.Socket]
+           [org.apache.curator CuratorZookeeperClient]
+           [org.apache.curator.framework.recipes.nodes PersistentNode]))
 
 (declare ^{:dynamic true} *zk-conn*)
 
@@ -119,8 +121,8 @@
   "Update server data for this server, clients will be notified"
   [slacker-server data]
   (let [serialized-data (serialize :clj data :bytes)
-        data-path (first (.zk-data slacker-server))]
-    (with-zk (.zk-conn slacker-server)
+        data-path (first (.-zk-data ^SlackerClusterServer slacker-server))]
+    (with-zk (.-zk-conn ^SlackerClusterServer slacker-server)
       (zk/set-data *zk-conn* data-path serialized-data))))
 
 (defn extract-ns [fn-coll]
@@ -149,7 +151,25 @@
 
     (SlackerClusterServer. svr zk-conn zk-data)))
 
-(defn unpublish-cluster! [server]
+(defn unpublish-ns!
+  "Unpublish a namespace from zookeeper, which means the service under the
+  namespace on this server will be offline from client, while we still have
+  time for remaining requests to finish. "
+  [server ns-name]
+  (let [{zk-data :zk-data} server
+        [_ zk-ephemeral-nodes leader-selectors] zk-data]
+    (doseq [[ns-node lead-sel] (partition 2 (interleave zk-ephemeral-nodes leader-selectors))]
+      (when (> (clojure.string/index-of (.getActualPath ^PersistentNode ns-node)
+                                        (str "/namespaces/" ns-name))
+               0)
+        (zk/uncreate-persistent-ephemeral-node ns-node)
+        (zk/stop-leader-election lead-sel)))))
+
+(defn unpublish-all!
+  "Unpublish all namespaces on this server. This is helpful when you need
+  graceful shutdown. The client needs some time to receive the offline event so
+  in this period the server still works."
+  [server]
   (let [{zk-data :zk-data} server
         [_ zk-ephemeral-nodes leader-selectors] zk-data]
     (doseq [n zk-ephemeral-nodes]
@@ -157,10 +177,15 @@
     (doseq [n leader-selectors]
       (zk/stop-leader-election n))))
 
-(defn stop-slacker-server [server]
-  (unpublish-cluster! server)
+(defn stop-slacker-server
+  "Shutdown slacker server, gracefully."
+  [server]
+  (unpublish-all! server)
   (let [{svr :svr zk-conn :zk-conn} server]
     (zk/close zk-conn)
+
+    (Thread/sleep (.getLastNegotiatedSessionTimeoutMs
+                   ^CuratorZookeeperClient (.-zk-conn ^SlackerClusterServer svr)))
 
     ;; TODO: wait some time to allow zk to notify all clients?
     (slacker.server/stop-slacker-server svr)))
