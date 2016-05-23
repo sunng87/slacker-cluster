@@ -393,7 +393,10 @@
                          on multiple instance.
                          * `:all` the API throws exception when exception
                                     is thrown on every instance
-                         * `:any` the API throws exception when any instance throws exception"
+                         * `:any` the API throws exception when any instance throws exception
+  * server-data-change-handler: a function accepts the client object, server
+                                address and server data. Note that this function runs on
+                                event thread so never do blocking things within it. "
 
   [cluster-name zk-server & {:keys [zk-root grouping grouping-results
                                     grouping-exceptions ping-interval
