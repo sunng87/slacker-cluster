@@ -72,7 +72,7 @@
     :NodeChildrenChanged (refresh-all-servers sc)
     nil))
 
-(defn- on-zk-events [e sc]
+(defn- on-zk-events [e sc server-data-change-handler]
   (logging/info "getting zookeeper event" e)
   (cond
     ;; zookeeper path change, refresh servers
@@ -84,7 +84,8 @@
       ;; event on `servers/addr`, server data update
       (and
        (= :NodeDataChanged (:event-type e))
-       (> (.indexOf ^String (:path e) "servers") 0)) (try-update-server-data! e sc)
+       (> (.indexOf ^String (:path e) "servers") 0))
+      (try-update-server-data! e sc server-data-change-handler)
 
       ;; event on `namespaces` nodes
       :else
@@ -349,19 +350,22 @@
        :meta (meta-data-from-zk zk-conn (:zk-root options)
                                 cluster-name args))}))
 
-(defn- try-update-server-data! [e ^ClusterEnabledSlackerClient scc]
+(defn- try-update-server-data! [e ^ClusterEnabledSlackerClient scc
+                                server-data-change-handler]
   (when-let [server-addr (second (re-matches #"/.+/servers/(.+?)" (:path e)))]
     (logging/debugf "received notification for server data change on %s" server-addr)
     (let [zk-conn (.zk-conn scc)
-          cluster-name (.cluster-name scc)
-          options (.options scc)
+          cluster-name (.-cluster-name scc)
+          options (.-options scc)
           new-data (fetch-server-data server-addr zk-conn cluster-name options)]
       (logging/infof "Getting updated server-data for %s: %s" server-addr new-data)
-      (swap! (.slacker-clients scc) (fn [clients-snapshot]
+      (swap! (.-slacker-clients scc) (fn [clients-snapshot]
                                       (if-let [old-sc (get clients-snapshot server-addr)]
                                         (let [sub-sc (.sc ^ServerRecord old-sc)]
                                           (assoc clients-snapshot server-addr (ServerRecord. sub-sc new-data)))
-                                        clients-snapshot))))))
+                                        clients-snapshot)))
+      (when server-data-change-handler
+        (server-data-change-handler scc server-addr new-data)))))
 
 (defn clustered-slackerc
   "create a cluster enalbed slacker client
@@ -393,7 +397,7 @@
 
   [cluster-name zk-server & {:keys [zk-root grouping grouping-results
                                     grouping-exceptions ping-interval
-                                    factory]
+                                    factory server-data-change-handler]
                              :or {zk-root "/slacker/cluster"
                                   grouping :random
                                   grouping-results :single
@@ -413,7 +417,8 @@
                :grouping-results grouping-results
                :grouping-exceptions grouping-exceptions))]
      ;; watch 'servers' node
-     (zk/register-watcher zk-conn (fn [e] (on-zk-events e sc)))
+     (zk/register-watcher zk-conn (fn [e]
+                                    (on-zk-events e sc server-data-change-handler)))
      (zk/register-error-handler zk-conn
                                 (fn [msg e]
                                   (logging/warn e "Unhandled Error" msg)))
