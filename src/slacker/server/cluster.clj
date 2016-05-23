@@ -159,8 +159,8 @@
   (let [{zk-data :zk-data} server
         [_ zk-ephemeral-nodes leader-selectors] zk-data]
     (doseq [[ns-node lead-sel] (partition 2 (interleave zk-ephemeral-nodes leader-selectors))]
-      (when (> (clojure.string/index-of (.getActualPath ^PersistentNode ns-node)
-                                        (str "/namespaces/" ns-name))
+      (when (> (.indexOf ^String (.getActualPath ^PersistentNode ns-node)
+                         (str "/namespaces/" ns-name))
                0)
         (zk/uncreate-persistent-ephemeral-node ns-node)
         (zk/stop-leader-election lead-sel)))))
