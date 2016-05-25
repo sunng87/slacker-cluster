@@ -1,11 +1,11 @@
 (ns slacker.client.cluster
-  (:require [slacker.zk :as zk])
-  (:require [slacker.client])
-  (:require [slacker.utils :as utils])
-  (:use [slacker.client.common])
-  (:use [slacker.serialization])
-  (:use [clojure.string :only [split]])
-  (:require [clojure.tools.logging :as logging])
+  (:require [slacker.client]
+            [slacker.client.common :refer :all]
+            [slacker.serialization :refer :all]
+            [slacker.utils :as utils]
+            [slacker.zk :as zk]
+            [clojure.string :refer [split]]
+            [clojure.tools.logging :as logging])
   (:import [clojure.lang IDeref IPending IBlockingDeref]))
 
 (def ^:dynamic *grouping* nil)

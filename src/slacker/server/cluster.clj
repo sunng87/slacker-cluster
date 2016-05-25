@@ -1,10 +1,11 @@
 (ns slacker.server.cluster
-  (:require [slacker.zk :as zk])
-  (:use [slacker common serialization])
-  (:use [clojure.string :only [split]])
-  (:require [slacker.server])
-  (:require [slacker.utils :as utils])
-  (:require [clojure.tools.logging :as logging])
+  (:require [slacker.common :refer :all]
+            [slacker.server]
+            [slacker.serialization :refer :all]
+            [slacker.utils :as utils]
+            [slacker.zk :as zk]
+            [clojure.tools.logging :as logging]
+            [clojure.string :refer [split]])
   (:import [java.net Socket]
            [org.apache.curator CuratorZookeeperClient]
            [org.apache.curator.framework.recipes.nodes PersistentNode]))

@@ -1,6 +1,6 @@
 (ns slacker.utils
   (:refer-clojure :exclude [replace])
-  (:use [clojure.string :only [join replace]]))
+  (:require [clojure.string :refer [join replace]]))
 
 
 (defn zk-path
