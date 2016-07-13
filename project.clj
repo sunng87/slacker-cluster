@@ -3,9 +3,9 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :url "https://github.com/sunng87/slacker-cluster"
-  :dependencies [[org.apache.curator/curator-framework "3.1.0"
+  :dependencies [[org.apache.curator/curator-framework "3.2.0"
                   :exclusions [jline]]
-                 [org.apache.curator/curator-recipes "3.1.0"]
+                 [org.apache.curator/curator-recipes "3.2.0"]
                  [org.clojure/tools.logging "0.3.1"]]
   :profiles {:example {:source-paths ["examples"]}
              :dev {:dependencies [[org.clojure/clojure "1.8.0"]
