@@ -10,7 +10,7 @@
            [org.apache.curator CuratorZookeeperClient]
            [org.apache.curator.framework.recipes.nodes PersistentNode]))
 
-(declare ^{:dynamic true} *zk-conn*)
+(declare ^{:dynamic true :private true} *zk-conn*)
 
 (defn- auto-detect-ip
   "detect IP by connecting to zookeeper"
@@ -39,7 +39,7 @@
                    :persistent? persistent?
                    :data data)))
 
-(defn select-leaders [zk-root cluster-name nss server-node]
+(defn- select-leaders [zk-root cluster-name nss server-node]
   (doall
    (map #(let [blocker (promise)
                leader-path (utils/zk-path
@@ -110,7 +110,7 @@
           leader-selectors (select-leaders zk-root cluster-name ns-names server-node)]
       [server-path ephemeral-nodes leader-selectors])))
 
-(defmacro with-zk
+(defmacro ^:private with-zk
   "publish server information to specifized zookeeper for client"
   [zk-conn & body]
   `(binding [*zk-conn* ~zk-conn]
@@ -126,7 +126,7 @@
     (with-zk (.-zk-conn ^SlackerClusterServer slacker-server)
       (zk/set-data *zk-conn* data-path serialized-data))))
 
-(defn extract-ns [fn-coll]
+(defn- extract-ns [fn-coll]
   (mapcat #(if (map? %) (keys %) [(ns-name %)]) fn-coll))
 
 (defn start-slacker-server

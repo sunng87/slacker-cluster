@@ -1,4 +1,4 @@
-(ns slacker.utils
+(ns ^:no-doc slacker.utils
   (:refer-clojure :exclude [replace])
   (:require [clojure.string :refer [join replace]]))
 

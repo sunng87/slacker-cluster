@@ -1,4 +1,4 @@
-(ns slacker.zk
+(ns ^:no-doc slacker.zk
   (:import [org.apache.curator.retry RetryForever]
            [org.apache.curator.framework
             CuratorFramework

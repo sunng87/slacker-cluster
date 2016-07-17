@@ -8,9 +8,15 @@
             [clojure.tools.logging :as logging])
   (:import [clojure.lang IDeref IPending IBlockingDeref]))
 
-(def ^:dynamic *grouping* nil)
-(def ^:dynamic *grouping-results* nil)
-(def ^:dynamic *grouping-exceptions* nil)
+(def ^{:dynamic true
+       :doc "cluster grouping function"}
+  *grouping* nil)
+(def ^{:dynamic true
+       :doc "clustered call result merge function"}
+  *grouping-results* nil)
+(def ^{:dynamic true
+       :doc "clustered exception option"}
+  *grouping-exceptions* nil)
 
 (declare try-update-server-data!)
 
@@ -24,7 +30,7 @@
   (server-data [this server-id]))
 
 (defmacro defn-remote
-  "cluster enabled defn-remote"
+  "cluster enabled defn-remote, with cluster options supported."
   [sc fname & options]
   ;; FIXME: these bindings are unused
   (let [fname-str (str fname)
@@ -111,10 +117,10 @@
     (constantly f)
     f))
 
-(defn group-call-results [grouping-results
-                          grouping-exceptions
-                          servers
-                          call-results]
+(defn ^:no-doc group-call-results [grouping-results
+                           grouping-exceptions
+                           servers
+                           call-results]
   (let [call-results (map #(assoc %1 :server %2) call-results servers)]
     (doseq [r (filter :cause call-results)]
       (logging/warn (str "error calling "
@@ -149,7 +155,7 @@
                                     {:grouping-results grouping-results-config
                                      :results valid-results}))))}))))
 
-(deftype GroupedPromise [grouping-fn promises]
+(deftype ^:no-doc GroupedPromise [grouping-fn promises]
   IDeref
   (deref [_]
     (let [call-results (mapv deref promises)]
@@ -169,7 +175,7 @@
   (isRealized [_]
     (every? realized? promises)))
 
-(defn grouped-promise [grouping-fn promises]
+(defn ^:no-doc grouped-promise [grouping-fn promises]
   (GroupedPromise. grouping-fn promises))
 
 (defn- parse-grouping-options [options call-options
@@ -187,8 +193,8 @@
        (:grouping-exceptions call-options)
        (:grouping-exceptions options))))
 
-(defrecord ServerRecord [sc data])
-(defn fetch-server-data [addr zk-conn cluster-name options]
+(defrecord ^:no-doc ServerRecord [sc data])
+(defn- fetch-server-data [addr zk-conn cluster-name options]
   (let [zk-server-path (utils/zk-path (:zk-root options) cluster-name "servers" addr)]
     ;; added watcher for server data changes
     (try (when-let [raw-node (zk/data zk-conn zk-server-path :watch? true)]
@@ -197,7 +203,7 @@
            (logging/warn e "Error getting server data from zookeeper.")
            nil))))
 
-(deftype ClusterEnabledSlackerClient
+(deftype ^:no-doc ClusterEnabledSlackerClient
     [cluster-name zk-conn
      slacker-clients slacker-ns-servers
      options]
@@ -368,35 +374,27 @@
         (server-data-change-handler scc server-addr new-data)))))
 
 (defn clustered-slackerc
-  "create a cluster enalbed slacker client
-  options:
+  "create a cluster enalbed slacker client options:
+
   * zk-root: specify the root path in zookeeper
   * factory: a client factory, default to non-ssl implementation
-  * grouping: specify how the client select servers to call,
-              this allows one or more servers to be called.
-              possible values:
-                * `:first` always choose the first server available
-                * `:random` choose a server by random (default)
-                * `:all` call function on all servers
-                * `(fn [ns fname params slacker-client servers])` specify a function to choose.
-                   you can also return :random or :all in this function
-  * grouping-results: when you call functions on multiple server, you can specify
-                      how many results return for the call. possible values:
-                      * `:nil` always returns nil
-                      * `:single` returns only one value
-                      * `:vector` returns values from all servers as a vector
-                      * `:map` returns values from all servers as a map, server host:port as key
-                      * `(fn [ns fname params])` a function that returns keywords above
-                      Note that if you use :vector or :map, you will break default behavior of
-                      the function
-  * grouping-exceptions: how to deal with the exceptions when calling functions
-                         on multiple instance.
-                         * `:all` the API throws exception when exception
-                                    is thrown on every instance
-                         * `:any` the API throws exception when any instance throws exception
+  * grouping: specify how the client select servers to call, this allows one or more servers to be called. Possible values:
+      * `:first` always choose the first server available
+      * `:random` choose a server by random (default)
+      * `:all` call function on all servers
+      * `(fn [ns fname params slacker-client servers])` specify a function to choose. You can also return :random or :all in this function
+  * grouping-results: when you call functions on multiple server, you can specify how many results return for the call. Note that if you use :vector or :map, you will break default behavior of the function. Possible values:
+      * `:nil` always returns nil
+      * `:single` returns only one value
+      * `:vector` returns values from all servers as a vector
+      * `:map` returns values from all servers as a map, server host:port as key
+      * `(fn [ns fname params])` a function that returns keywords above
+  * grouping-exceptions: how to deal with the exceptions when calling functions  on multiple instance.
+      * `:all` the API throws exception when exception is thrown on every instance
+      * `:any` the API throws exception when any instance throws exception
   * server-data-change-handler: a function accepts the client object, server
-                                address and server data. Note that this function runs on
-                                event thread so never do blocking things within it. "
+    address and server data. Note that this function runs on
+    event thread so never do blocking things within it. "
 
   [cluster-name zk-server & {:keys [zk-root grouping grouping-results
                                     grouping-exceptions ping-interval
