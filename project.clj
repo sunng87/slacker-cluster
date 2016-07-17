@@ -9,15 +9,19 @@
                  [org.clojure/tools.logging "0.3.1"]]
   :profiles {:example {:source-paths ["examples"]}
              :dev {:dependencies [[org.clojure/clojure "1.8.0"]
-                                  [slacker "0.14.1"]
+                                  [slacker "0.14.2-SNAPSHOT"]
                                   [log4j "1.2.17"]
                                   [org.slf4j/slf4j-log4j12 "1.7.21"]]}
              :clojure17 {:dependencies [[org.clojure/clojure "1.7.0"]]}
-             :clojure18 {:dependencies [[org.clojure/clojure "1.8.0"]]}}
-  :plugins [[codox "0.8.15"]]
+             :clojure18 {:dependencies [[org.clojure/clojure "1.8.0"]]}
+             :clojure19 {:dependencies [[org.clojure/clojure "1.9.0-alpha10"]]}}
+  :plugins [[lein-codox "0.9.5"]]
   :global-vars {*warn-on-reflection* true}
   :aliases {"run-example-server" ["with-profile" "default,dev,clojure17,example" "run" "-m" "slacker.example.cluster-server"]
             "run-example-client" ["with-profile" "default,dev,clojure17,example" "run" "-m" "slacker.example.cluster-client"]
             "test-all" ["with-profile" "default,dev,clojure17:default,dev,clojure18" "test"]}
   :deploy-repositories {"releases" :clojars}
-  :jvm-opts ["-Xmx256m"])
+  :jvm-opts ["-Xmx256m"]
+  :codox {:output-path "target/codox"
+          :source-uri "https://github.com/sunng87/slacker/blob/master/{filepath}#L{line}"
+          :metadata {:doc/format :markdown}})
