@@ -7,7 +7,8 @@
                   :exclusions [jline]]
                  [org.apache.curator/curator-recipes "3.2.0"]
                  [org.clojure/tools.logging "0.3.1"]]
-  :profiles {:example {:source-paths ["examples"]}
+  :profiles {:example {:source-paths ["examples"]
+                       :dependencies [[org.apache.curator/curator-test "3.2.0"]]}
              :dev {:dependencies [[org.clojure/clojure "1.8.0"]
                                   [slacker "0.14.2-SNAPSHOT"]
                                   [log4j "1.2.17"]
@@ -17,8 +18,9 @@
              :clojure19 {:dependencies [[org.clojure/clojure "1.9.0-alpha10"]]}}
   :plugins [[lein-codox "0.9.5"]]
   :global-vars {*warn-on-reflection* true}
-  :aliases {"run-example-server" ["with-profile" "default,dev,clojure17,example" "run" "-m" "slacker.example.cluster-server"]
-            "run-example-client" ["with-profile" "default,dev,clojure17,example" "run" "-m" "slacker.example.cluster-client"]
+  :aliases {"run-example-server" ["with-profile" "default,dev,clojure18,example" "run" "-m" "slacker.example.cluster-server"]
+            "run-example-client" ["with-profile" "default,dev,clojure18,example" "run" "-m" "slacker.example.cluster-client"]
+            "run-example-zk" ["with-profile" "default,dev,clojure18,example" "run" "-m" "slacker.example.embedded-zk"]
             "test-all" ["with-profile" "default,dev,clojure17:default,dev,clojure18" "test"]}
   :deploy-repositories {"releases" :clojars}
   :jvm-opts ["-Xmx256m"]
