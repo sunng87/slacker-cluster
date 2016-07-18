@@ -11,15 +11,15 @@ framework.
 [![License](https://img.shields.io/badge/license-eclipse-blue.svg)](https://github.com/sunng87/slacker-cluster/blob/master/LICENSE)
 
 Base on service discovery by ZooKeeper, slacker has a solution for
-high availability and load balancing. You can have several slacker servers
-in a cluster serving namespaces of functions. The cluster-enabled
-slacker client will randomly choose one (or several, based on your
+high availability and load balancing. You can have several slacker
+servers in a cluster serving namespaces of functions. The
+cluster-enabled slacker client will choose one (or several, based on your
 grouping function) of these servers to call. Once a server is added
-to or removed from the cluster, the client will received notification
+to or removed from the cluster, the client will receive a notification
 from zookeeper and establish/destroy the connection to the server.
 
 To create such a slacker cluster, you have to deploy at least one zookeeper
-instance in your system.
+instance in your topology.
 
 ## Leiningen
 
