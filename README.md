@@ -141,7 +141,10 @@ this situation.
 ## Examples
 
 There is a cluster example in the source code. To run the server,
-start a zookeeper on your machine (127.0.0.1:2181)
+start a zookeeper on your machine (127.0.0.1:2181). We have an example
+zookeeper server you can start with:
+
+    lein run-example-zk
 
 Start server instance:
 
