@@ -23,6 +23,9 @@
   :async? true
   :callback (fn [e r]
               (println "++++" r)))
+(defn-remote sc echo2
+  :remote-ns "slacker.example.api2"
+  :grouping :random)
 
 (defn -main [& args]
   (dotimes [_ 100] (timestamp))
@@ -31,6 +34,7 @@
   (println (all-timestamp))
   (async-timestamp)
   (try (make-error) (catch Exception e (println "Expected exception:" (ex-data e))))
+  (println (echo2 "Echo" "Some" "Data"))
 
   (close-slackerc sc)
   (shutdown-slacker-client-factory)

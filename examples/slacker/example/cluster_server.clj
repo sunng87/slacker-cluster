@@ -18,5 +18,5 @@
                                   :name "example-cluster"}
                         :server-data {:label :example}
                         :interceptors (interceptors [log-function-calls])
-                        :zk-session-timeout 10000))
-(println "Slacker example server (cluster enabled) started.")
+                        :zk-session-timeout 10000)
+  (println "Slacker example server (cluster enabled) started."))
