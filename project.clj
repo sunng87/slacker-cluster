@@ -8,7 +8,7 @@
                  [org.apache.curator/curator-recipes "2.11.0"]
                  [org.clojure/tools.logging "0.3.1"]]
   :profiles {:example {:source-paths ["examples"]
-                       :dependencies [[org.apache.curator/curator-test "3.2.0"]]}
+                       :dependencies [[org.apache.curator/curator-test "2.11.0"]]}
              :dev {:dependencies [[org.clojure/clojure "1.8.0"]
                                   [slacker "0.14.2"]
                                   [log4j "1.2.17"]
