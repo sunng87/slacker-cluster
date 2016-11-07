@@ -118,9 +118,9 @@
     f))
 
 (defn ^:no-doc group-call-results [grouping-results
-                           grouping-exceptions
-                           servers
-                           call-results]
+                                   grouping-exceptions
+                                   servers
+                                   call-results]
   (let [call-results (map #(assoc %1 :server %2) call-results servers)]
     (doseq [r (filter :cause call-results)]
       (logging/warn (str "error calling "
@@ -128,32 +128,32 @@
                          ". Error: "
                          (:cause r))))
     (cond
-     ;; there's exception occured and we don't want to ignore
-     (every? :cause call-results)
-     {:cause {:code :failed
-              :nested (map :cause call-results)}}
+      ;; there's exception occured and we don't want to ignore
+      (every? :cause call-results)
+      {:cause {:code :failed
+               :nested (map :cause call-results)}}
 
-     (and
-      (some :cause call-results)
-      (= grouping-exceptions :any))
-     {:cause {:code :failed
-              :servers (map :server (filter :cause call-results))
-              :nested (map :cause (filter :cause call-results))}}
+      (and
+       (some :cause call-results)
+       (= grouping-exceptions :any))
+      {:cause {:code :failed
+               :servers (map :server (filter :cause call-results))
+               :nested (map :cause (filter :cause call-results))}}
 
-     :else
-     (let [valid-results (remove :cause call-results)
-           grouping-results-config (grouping-results)]
-       {:result (case grouping-results-config
-                  :nil nil
-                  :single (:result (first valid-results))
-                  :vector (mapv :result valid-results)
-                  :map (into {} (map #(vector (:server %) (:result %))
-                                     valid-results))
-                  (if (fn? grouping-results-config)
-                    (grouping-results-config valid-results)
-                    (throw (ex-info "Unsupported grouping-results value"
-                                    {:grouping-results grouping-results-config
-                                     :results valid-results}))))}))))
+      :else
+      (let [valid-results (remove :cause call-results)
+            grouping-results-config (grouping-results)]
+        {:result (case grouping-results-config
+                   :nil nil
+                   :single (:result (first valid-results))
+                   :vector (mapv :result valid-results)
+                   :map (into {} (map #(vector (:server %) (:result %))
+                                      valid-results))
+                   (if (fn? grouping-results-config)
+                     (grouping-results-config valid-results)
+                     (throw (ex-info "Unsupported grouping-results value"
+                                     {:grouping-results grouping-results-config
+                                      :results valid-results}))))}))))
 
 (deftype ^:no-doc GroupedPromise [grouping-fn promises]
   IDeref
@@ -204,9 +204,9 @@
            nil))))
 
 (deftype ^:no-doc ClusterEnabledSlackerClient
-    [cluster-name zk-conn
-     slacker-clients slacker-ns-servers
-     options]
+         [cluster-name zk-conn
+          slacker-clients slacker-ns-servers
+          options]
   CoordinatorAwareClient
   (refresh-associated-servers [this nsname]
     (logging/infof "starting to refresh servers of %s" nsname)
@@ -366,10 +366,10 @@
           new-data (fetch-server-data server-addr zk-conn cluster-name options)]
       (logging/infof "Getting updated server-data for %s: %s" server-addr new-data)
       (swap! (.-slacker-clients scc) (fn [clients-snapshot]
-                                      (if-let [old-sc (get clients-snapshot server-addr)]
-                                        (let [sub-sc (.sc ^ServerRecord old-sc)]
-                                          (assoc clients-snapshot server-addr (ServerRecord. sub-sc new-data)))
-                                        clients-snapshot)))
+                                       (if-let [old-sc (get clients-snapshot server-addr)]
+                                         (let [sub-sc (.sc ^ServerRecord old-sc)]
+                                           (assoc clients-snapshot server-addr (ServerRecord. sub-sc new-data)))
+                                         clients-snapshot)))
       (when server-data-change-handler
         (server-data-change-handler scc server-addr new-data)))))
 
@@ -413,10 +413,10 @@
              cluster-name zk-conn
              slacker-clients slacker-ns-servers
              (assoc options
-               :zk-root zk-root
-               :grouping grouping
-               :grouping-results grouping-results
-               :grouping-exceptions grouping-exceptions))]
+                    :zk-root zk-root
+                    :grouping grouping
+                    :grouping-results grouping-results
+                    :grouping-exceptions grouping-exceptions))]
      ;; watch 'servers' node
      (zk/register-watcher zk-conn (fn [e]
                                     (on-zk-events e sc server-data-change-handler)))

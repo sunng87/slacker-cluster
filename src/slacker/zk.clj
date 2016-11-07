@@ -59,10 +59,10 @@
       (create)
       (withMode ^CreateMode
        (cond
-        (and persistent? sequential?) CreateMode/PERSISTENT_SEQUENTIAL
-        persistent? CreateMode/PERSISTENT
-        sequential? CreateMode/EPHEMERAL_SEQUENTIAL
-        :else CreateMode/EPHEMERAL))
+         (and persistent? sequential?) CreateMode/PERSISTENT_SEQUENTIAL
+         persistent? CreateMode/PERSISTENT
+         sequential? CreateMode/EPHEMERAL_SEQUENTIAL
+         :else CreateMode/EPHEMERAL))
       (forPath path ^bytes data)))
 
 (defn create-all [^CuratorFramework conn
@@ -71,10 +71,10 @@
                      :or {persistent? true
                           sequential? false}}]
   (let [mode (cond
-              (and persistent? sequential?) CreateMode/PERSISTENT_SEQUENTIAL
-              persistent? CreateMode/PERSISTENT
-              sequential? CreateMode/EPHEMERAL_SEQUENTIAL
-              :else CreateMode/EPHEMERAL)]
+               (and persistent? sequential?) CreateMode/PERSISTENT_SEQUENTIAL
+               persistent? CreateMode/PERSISTENT
+               sequential? CreateMode/EPHEMERAL_SEQUENTIAL
+               :else CreateMode/EPHEMERAL)]
     (.. conn
         (create)
         (withMode ^CreateMode mode)
@@ -105,7 +105,7 @@
   (try (.close s)
        (catch IllegalStateException _
          ;; just ignore duplicated close
-         )))
+)))
 
 (defn set-data [^CuratorFramework conn
                 ^String path
@@ -131,7 +131,7 @@
   (let [gcb (.getData conn)
         gcb (if watch? (.watched gcb) gcb)
         gcb (if watcher (.usingWatcher ^GetDataBuilder gcb
-                                       ^CuratorWatcher(wrap-watcher watcher)) gcb)]
+                                       ^CuratorWatcher (wrap-watcher watcher)) gcb)]
     (.forPath ^GetDataBuilder gcb path)))
 
 (defn delete [^CuratorFramework conn
