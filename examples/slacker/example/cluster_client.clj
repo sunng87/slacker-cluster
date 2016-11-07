@@ -18,7 +18,7 @@
 (defn-remote sc async-timestamp
   :remote-name "timestamp"
   :remote-ns "slacker.example.api"
-  :grouping :all
+  :grouping :least-in-flight
   :grouping-results :map
   :async? true
   :callback (fn [e r]

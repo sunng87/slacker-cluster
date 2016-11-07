@@ -6,7 +6,8 @@
             [slacker.zk :as zk]
             [clojure.string :refer [split]]
             [clojure.tools.logging :as logging])
-  (:import [clojure.lang IDeref IPending IBlockingDeref]))
+  (:import [clojure.lang IDeref IPending IBlockingDeref]
+           [slacker.client.common SlackerClient]))
 
 (def ^{:dynamic true
        :doc "cluster grouping function"}
@@ -18,7 +19,8 @@
        :doc "clustered exception option"}
   *grouping-exceptions* nil)
 
-(declare try-update-server-data!)
+(declare try-update-server-data!
+         find-least-in-flight-server)
 
 (defprotocol CoordinatorAwareClient
   (refresh-associated-servers [this ns])
@@ -58,6 +60,7 @@
                                :random [(rand-nth servers)]
                                :first [(first servers)]
                                :leader [(first servers)]
+                               :least-in-flight [(find-least-in-flight-server slacker-client servers)]
                                (if (coll? grouped-servers)
                                  grouped-servers
                                  (vector grouped-servers)))]
@@ -372,6 +375,18 @@
                                          clients-snapshot)))
       (when server-data-change-handler
         (server-data-change-handler scc server-addr new-data)))))
+
+(defn- find-least-in-flight-server [^ClusterEnabledSlackerClient client servers]
+  (->> servers
+       (map #(if-let [sr (get @(.-slacker-clients client) %)]
+               (let [sc (.-sc ^ServerRecord sr)
+                     pendings (:pendings (get-purgatory (.-factory ^SlackerClient @sc) %))]
+                 (if (some? pendings) (count @pendings) Integer/MAX_VALUE))
+               Integer/MAX_VALUE))
+       (zipmap servers)
+       (sort-by second)
+       first
+       first))
 
 (defn clustered-slackerc
   "create a cluster enalbed slacker client options:
