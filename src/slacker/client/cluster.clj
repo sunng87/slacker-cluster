@@ -380,8 +380,8 @@
   (->> servers
        (map #(if-let [sr (get @(.-slacker-clients client) %)]
                (let [sc (.-sc ^ServerRecord sr)
-                     pendings (:pendings (get-purgatory (.-factory ^SlackerClient @sc) %))]
-                 (if (some? pendings) (count @pendings) Integer/MAX_VALUE))
+                     pendings (pending-count @sc)]
+                 (if (some? pendings) pendings Integer/MAX_VALUE))
                Integer/MAX_VALUE))
        (zipmap servers)
        (sort-by second)

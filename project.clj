@@ -10,7 +10,7 @@
   :profiles {:example {:source-paths ["examples"]
                        :dependencies [[org.apache.curator/curator-test "2.11.0"]]}
              :dev {:dependencies [[org.clojure/clojure "1.8.0"]
-                                  [slacker "0.14.2"]
+                                  [slacker "0.14.3-SNAPSHOT"]
                                   [log4j "1.2.17"]
                                   [org.slf4j/slf4j-log4j12 "1.7.21"]]}
              :clojure17 {:dependencies [[org.clojure/clojure "1.7.0"]]}
