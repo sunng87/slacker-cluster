@@ -182,11 +182,14 @@
   "Shutdown slacker server, gracefully."
   [server]
   (unpublish-all! server)
-  (let [{svr :svr zk-conn :zk-conn} server]
+  (let [{svr :svr zk-conn :zk-conn} server
+        session-timeout (.. zk-conn
+                            (getZookeeperClient)
+                            (getZooKeeper)
+                            (getSessionTimeout))]
     (zk/close zk-conn)
 
-    (Thread/sleep (.getLastNegotiatedSessionTimeoutMs
-                   ^CuratorZookeeperClient (.-zk-conn ^SlackerClusterServer svr)))
+    (Thread/sleep session-timeout)
 
     ;; TODO: wait some time to allow zk to notify all clients?
     (slacker.server/stop-slacker-server svr)))
