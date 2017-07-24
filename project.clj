@@ -1,4 +1,4 @@
-(defproject slacker/slacker-cluster "0.14.3-SNAPSHOT"
+(defproject slacker/slacker-cluster "0.15.0-SNAPSHOT"
   :description "Cluster support for slacker"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
@@ -10,7 +10,7 @@
   :profiles {:example {:source-paths ["examples"]
                        :dependencies [[org.apache.curator/curator-test "2.11.1"]]}
              :dev {:dependencies [[org.clojure/clojure "1.8.0"]
-                                  [slacker "0.14.3-SNAPSHOT"]
+                                  [slacker "0.15.0"]
                                   [log4j "1.2.17"]
                                   [org.slf4j/slf4j-log4j12 "1.7.21"]]}
              :clojure17 {:dependencies [[org.clojure/clojure "1.7.0"]]}
