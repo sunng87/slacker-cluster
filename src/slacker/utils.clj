@@ -1,6 +1,7 @@
 (ns ^:no-doc slacker.utils
   (:refer-clojure :exclude [replace])
-  (:require [clojure.string :refer [join replace]]))
+  (:require [clojure.string :refer [join replace]])
+  (:import [io.netty.buffer ByteBuf Unpooled ByteBufUtil]))
 
 
 (defn zk-path
@@ -21,3 +22,9 @@
 
 (defn meta-path? [^String name]
   (.startsWith name "_"))
+
+(defn buf-from-bytes [bytes]
+  (Unpooled/wrappedBuffer ^bytes bytes))
+
+(defn bytes-from-buf [buf]
+  (ByteBufUtil/getBytes ^ByteBuf buf))

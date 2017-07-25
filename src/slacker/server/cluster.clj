@@ -74,7 +74,7 @@
                          ":" port)
         server-path (utils/zk-path zk-root cluster-name
                                    "servers" server-node)
-        server-path-data (serialize :clj server-data :bytes)
+        server-path-data (utils/bytes-from-buf (serialize :clj server-data))
         funcs (keys funcs-map)
 
         ns-path-fn (fn [p] (utils/zk-path zk-root cluster-name "namespaces" p server-node))
@@ -121,10 +121,10 @@
 (defn set-server-data!
   "Update server data for this server, clients will be notified"
   [slacker-server data]
-  (let [serialized-data (serialize :clj data :bytes)
+  (let [serialized-data (serialize :clj data)
         data-path (first (.-zk-data ^SlackerClusterServer slacker-server))]
     (with-zk (.-zk-conn ^SlackerClusterServer slacker-server)
-      (zk/set-data *zk-conn* data-path serialized-data))))
+      (zk/set-data *zk-conn* data-path (utils/bytes-from-buf serialized-data)))))
 
 (defn- extract-ns [fn-coll]
   (mapcat #(if (map? %) (keys %) [(ns-name %)]) fn-coll))
