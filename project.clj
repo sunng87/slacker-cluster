@@ -3,16 +3,16 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :url "https://github.com/sunng87/slacker-cluster"
-  :dependencies [[org.apache.curator/curator-framework "2.11.1"
+  :dependencies [[org.apache.curator/curator-framework "3.3.0"
                   :exclusions [jline]]
-                 [org.apache.curator/curator-recipes "2.11.1"]
-                 [org.clojure/tools.logging "0.3.1"]]
+                 [org.apache.curator/curator-recipes "3.3.0"]
+                 [org.clojure/tools.logging "0.4.0"]]
   :profiles {:example {:source-paths ["examples"]
-                       :dependencies [[org.apache.curator/curator-test "2.11.1"]]}
+                       :dependencies [[org.apache.curator/curator-test "3.3.0"]]}
              :dev {:dependencies [[org.clojure/clojure "1.8.0"]
                                   [slacker "0.15.0"]
                                   [log4j "1.2.17"]
-                                  [org.slf4j/slf4j-log4j12 "1.7.21"]]}
+                                  [org.slf4j/slf4j-log4j12 "1.7.25"]]}
              :clojure17 {:dependencies [[org.clojure/clojure "1.7.0"]]}
              :clojure18 {:dependencies [[org.clojure/clojure "1.8.0"]]}
              :clojure19 {:dependencies [[org.clojure/clojure "1.9.0-alpha10"]]}}
