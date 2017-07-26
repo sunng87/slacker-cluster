@@ -93,15 +93,14 @@
                    :persistent? true))
 
     (doseq [fname funcs]
-      (create-node *zk-conn*
-                   (utils/zk-path zk-root cluster-name "functions" fname)
-                   :persistent? true
-                   :data (serialize
-                          :clj
-                          (select-keys
-                           (meta (funcs-map fname))
-                           [:name :doc :arglists])
-                          :bytes)))
+      (let [node-data (serialize :clj
+                                 (select-keys
+                                  (meta (funcs-map fname))
+                                  [:name :doc :arglists]))]
+        (create-node *zk-conn*
+                     (utils/zk-path zk-root cluster-name "functions" fname)
+                     :persistent? true
+                     :data (utils/bytes-from-buf node-data))))
 
     (let [ephemeral-nodes (doall (map #(do
                                          (try (zk/delete *zk-conn* (first %)) (catch Exception _))
