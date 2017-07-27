@@ -283,7 +283,8 @@
       (if (empty? target-conns)
         (if (contains? call-options :unavailable-value)
           {:result (:unavailable-value call-options)}
-          {:cause {:error :unavailable :servers target-servers}})
+          {:cause {:error :unavailable :servers target-servers}
+           :fname (str ns-name "/" func-name)})
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
@@ -325,7 +326,8 @@
       (if (empty? target-conns)
         (doto (promise) (deliver (if (contains? call-options :unavailable-value)
                                    {:result (:unavailable-value call-options)}
-                                   {:cause {:error :unavailable :servers target-servers}})))
+                                   {:cause {:error :unavailable :servers target-servers}
+                                    :fname (str ns-name "/" func-name)})))
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
