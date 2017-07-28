@@ -124,39 +124,44 @@
                                    grouping-exceptions
                                    servers
                                    call-results]
-  (let [call-results (map #(assoc %1 :server %2) call-results servers)]
+  (let [req-info (dissoc (first call-results) :result :cause)
+        call-results (map #(assoc %1 :server %2) call-results servers)]
     (doseq [r (filter :cause call-results)]
-      (logging/warn (str "error calling "
+      (logging/info (str "error calling "
                          (:server r)
                          ". Error: "
                          (:cause r))))
     (cond
       ;; there's exception occured and we don't want to ignore
       (every? :cause call-results)
-      {:cause {:code :failed
-               :nested (map :cause call-results)}}
+      (assoc req-info
+             :cause {:code :failed
+                     :nested (map :cause call-results)})
 
       (and
        (some :cause call-results)
        (= grouping-exceptions :any))
-      {:cause {:code :failed
-               :servers (map :server (filter :cause call-results))
-               :nested (map :cause (filter :cause call-results))}}
+      (assoc req-info
+             :cause {:code :failed
+                     :servers (map :server (filter :cause call-results))
+                     :nested (map :cause (filter :cause call-results))})
+
 
       :else
       (let [valid-results (remove :cause call-results)
             grouping-results-config (grouping-results)]
-        {:result (case grouping-results-config
-                   :nil nil
-                   :single (:result (first valid-results))
-                   :vector (mapv :result valid-results)
-                   :map (into {} (map #(vector (:server %) (:result %))
-                                      valid-results))
-                   (if (fn? grouping-results-config)
-                     (grouping-results-config valid-results)
-                     (throw (ex-info "Unsupported grouping-results value"
-                                     {:grouping-results grouping-results-config
-                                      :results valid-results}))))}))))
+        (assoc req-info
+               :result (case grouping-results-config
+                         :nil nil
+                         :single (:result (first valid-results))
+                         :vector (mapv :result valid-results)
+                         :map (into {} (map #(vector (:server %) (:result %))
+                                            valid-results))
+                         (if (fn? grouping-results-config)
+                           (grouping-results-config valid-results)
+                           (throw (ex-info "Unsupported grouping-results value"
+                                           {:grouping-results grouping-results-config
+                                            :results valid-results})))))))))
 
 (deftype ^:no-doc GroupedPromise [grouping-fn promises]
   IDeref
