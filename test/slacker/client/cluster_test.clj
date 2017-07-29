@@ -79,4 +79,5 @@
                {:result unavailable-value}))
         (is (= (sync-call-remote client d-ns "dummy-fn" []
                                  {:grouping (constantly [])})
-               {:cause {:error :unavailable :servers []}}))))))
+               {:cause {:error :unavailable :servers []}
+                :fname "dummy-ns/dummy-fn"}))))))
