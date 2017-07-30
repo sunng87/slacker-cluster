@@ -403,6 +403,8 @@
   * grouping: specify how the client select servers to call, this allows one or more servers to be called. Possible values:
       * `:first` always choose the first server available
       * `:random` choose a server by random (default)
+      * `:leader` use current leader server
+      * `:least-in-flight` use server with least pending requests
       * `:all` call function on all servers
       * `(fn [ns fname params slacker-client servers])` specify a function to choose. You can also return :random or :all in this function
   * grouping-results: when you call functions on multiple server, you can specify how many results return for the call. Note that if you use :vector or :map, you will break default behavior of the function. Possible values:
@@ -444,7 +446,7 @@
                                     (on-zk-events e sc server-data-change-handler)))
      (zk/register-error-handler zk-conn
                                 (fn [msg e]
-                                  (logging/warn e "Unhandled Error" msg)))
+                                  (logging/warn e "Unhandled ZooKeeper Error" msg)))
      (zk/children zk-conn
                   (utils/zk-path zk-root cluster-name "servers")
                   :watch? true)
