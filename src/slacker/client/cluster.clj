@@ -122,10 +122,8 @@
 
 (defn ^:no-doc group-call-results [grouping-results
                                    grouping-exceptions
-                                   servers
                                    call-results]
-  (let [req-info (dissoc (first call-results) :result :cause)
-        call-results (map #(assoc %1 :server %2) call-results servers)]
+  (let [req-info (dissoc (first call-results) :result :cause)]
     (doseq [r (filter :cause call-results)]
       (logging/info (str "error calling "
                          (:server r)
@@ -280,27 +278,33 @@
         (when (nil? ((get-ns-mappings this) ns-name))
           (refresh-associated-servers this ns-name))))
 
-    (let [[grouping* grouping-results* grouping-exceptions*]
+    (let [fname (str ns-name "/" func-name)
+          [grouping* grouping-results* grouping-exceptions*]
           (parse-grouping-options options call-options
                                   ns-name func-name params)
           target-servers (find-server this slacker-ns-servers ns-name grouping*)
           target-conns (filter identity (map @slacker-clients target-servers))]
       (if (empty? target-conns)
         (if (contains? call-options :unavailable-value)
-          {:result (:unavailable-value call-options)}
+          {:result (:unavailable-value call-options)
+           :fname fname}
           {:cause {:error :unavailable :servers target-servers}
-           :fname (str ns-name "/" func-name)})
+           :fname fname})
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
-          (let [call-results (pmap #(sync-call-remote @(.sc ^ServerRecord %)
-                                                      ns-name
-                                                      func-name
-                                                      params
-                                                      call-options)
-                                   target-conns)]
-            (group-call-results grouping-results* grouping-exceptions*
-                                target-servers call-results))))))
+          (let [call-results (pmap #(assoc (sync-call-remote @(.sc ^ServerRecord %1)
+                                                             ns-name
+                                                             func-name
+                                                             params
+                                                             call-options)
+                                           :server %2)
+                                   target-conns
+                                   target-servers)]
+            (->> call-results
+                 ((:before-merge (:interceptors call-options) identity))
+                 (group-call-results grouping-results* grouping-exceptions*)
+                 ((:after-merge (:interceptors call-options) identity))))))))
 
   (async-call-remote [this ns-name func-name params cb call-options]
     ;; synchronized refresh servers from zookeeper
@@ -309,7 +313,8 @@
         (when (nil? ((get-ns-mappings this) ns-name))
           (refresh-associated-servers this ns-name))))
 
-    (let [[grouping* grouping-results* grouping-exceptions*]
+    (let [fname (str ns-name "/" func-name)
+          [grouping* grouping-results* grouping-exceptions*]
           (parse-grouping-options options call-options
                                   ns-name func-name params)
           target-servers (find-server this slacker-ns-servers ns-name
@@ -330,9 +335,10 @@
                          (cb (:cause grouped-results) (:result grouped-results))))))]
       (if (empty? target-conns)
         (doto (promise) (deliver (if (contains? call-options :unavailable-value)
-                                   {:result (:unavailable-value call-options)}
+                                   {:result (:unavailable-value call-options)
+                                    :fname fname}
                                    {:cause {:error :unavailable :servers target-servers}
-                                    :fname (str ns-name "/" func-name)})))
+                                    :fname fname})))
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))

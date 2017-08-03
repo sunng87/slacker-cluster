@@ -26,40 +26,34 @@
 (deftest test-group-call-results
   (is (:cause (group-call-results (constantly :vector)
                                   :all
-                                  ["1" "2"]
                                   [{:cause {:error true}}
                                    {:cause {:error true}}])))
   (let [r (group-call-results (constantly :vector)
                               :all
-                              ["1" "2"]
                               [{:cause {:error true}}
                                {}])]
     (is (not (:cause r))
         (= 1 (count (:result r)))))
   (is (:cause (group-call-results (constantly :vector)
                                   :any
-                                  ["1" "2"]
                                   [{:cause {:error true}}
                                    {:result 1}])))
   (is (count
        (:result
         (group-call-results (constantly :vector)
                             :any
-                            ["1" "2"]
                             [{:result 1}
                              {:result 2}]))))
   (let [r (group-call-results (constantly :map)
                               :any
-                              ["1" "2"]
-                              [{:result 1}
-                               {:result 2}])]
+                              [{:result 1 :server "1"}
+                               {:result 2 :server "2"}])]
     (is (= 1 (-> r :result (get "1")))))
   (let [grf (fn []
               (fn [results]
                 (reduce + (map :result results))))
         r (group-call-results grf
                               :all
-                              ["1" "2"]
                               [{:result 1}
                                {:result 2}])]
     (is (= 3 (:result r)))))
@@ -76,7 +70,7 @@
         (is (= (sync-call-remote client d-ns "dummy-fn" []
                                  {:grouping (constantly [])
                                   :unavailable-value unavailable-value})
-               {:result unavailable-value}))
+               {:result unavailable-value :fname "dummy-ns/dummy-fn"}))
         (is (= (sync-call-remote client d-ns "dummy-fn" []
                                  {:grouping (constantly [])})
                {:cause {:error :unavailable :servers []}
