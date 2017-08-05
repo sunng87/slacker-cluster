@@ -9,14 +9,14 @@
 
 (deftest test-group-promise []
   (let [prmss (take 5 (repeatedly promise))
-        gprm (grouped-promise identity prmss)]
+        gprm (grouped-promise identity prmss nil)]
     (dorun (map #(deliver % true) prmss))
     (is (every? true? @gprm)))
   (let [prmss (take 5 (repeatedly promise))
-        gprm (grouped-promise identity prmss)]
+        gprm (grouped-promise identity prmss nil)]
     (is (= 1 (deref gprm 2 1))))
   (let [prmss (take 5 (repeatedly promise))
-        gprm (grouped-promise identity prmss)]
+        gprm (grouped-promise identity prmss nil)]
     (future
       (dorun (map #(do
                      (deliver % true)
