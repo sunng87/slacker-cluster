@@ -161,11 +161,14 @@
                                            {:grouping-results grouping-results-config
                                             :results valid-results})))))))))
 
-(deftype ^:no-doc GroupedPromise [grouping-fn promises]
+(deftype ^:no-doc GroupedPromise [grouping-fn promises call-options]
   IDeref
   (deref [_]
     (let [call-results (mapv deref promises)]
-      (grouping-fn call-results)))
+      (->> call-results
+           ((:before-merge (:interceptors call-options) identity))
+           grouping-fn
+           ((:after-merge (:interceptors call-options) identity)))))
   IBlockingDeref
   (deref [this timeout timeout-var]
     (let [time-start (System/currentTimeMillis)]
@@ -181,8 +184,8 @@
   (isRealized [_]
     (every? realized? promises)))
 
-(defn ^:no-doc grouped-promise [grouping-fn promises]
-  (GroupedPromise. grouping-fn promises))
+(defn ^:no-doc grouped-promise [grouping-fn promises call-options]
+  (GroupedPromise. grouping-fn promises call-options))
 
 (defn- parse-grouping-options [options call-options
                                ns-name func-name params]
@@ -322,8 +325,7 @@
           target-conns (filter identity (map @slacker-clients target-servers))
           grouping-fn (partial group-call-results
                                grouping-results*
-                               grouping-exceptions*
-                               target-servers)
+                               grouping-exceptions*)
           cb-results (atom [])
           target-servers-count (count target-servers)
           sys-cb (when cb
@@ -331,7 +333,10 @@
                      (when (= (count (swap! cb-results conj
                                             {:cause excp :result data}))
                               target-servers-count)
-                       (let [grouped-results (grouping-fn @cb-results)]
+                       (let [grouped-results (->> @cb-results
+                                                  ((:before-merge (:interceptors call-options) identity))
+                                                  grouping-fn
+                                                  ((:after-merge (:interceptors call-options) identity)))]
                          (cb (:cause grouped-results) (:result grouped-results))))))]
       (if (empty? target-conns)
         (doto (promise) (deliver (if (contains? call-options :unavailable-value)
@@ -350,7 +355,7 @@
                                                sys-cb
                                                call-options)
                            target-conns)]
-            (grouped-promise grouping-fn call-prms))))))
+            (grouped-promise grouping-fn call-prms call-options))))))
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)]
