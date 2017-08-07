@@ -187,20 +187,16 @@
 (defn ^:no-doc grouped-promise [grouping-fn promises call-options]
   (GroupedPromise. grouping-fn promises call-options))
 
-(defn- parse-grouping-options [options call-options
-                               ns-name func-name params]
+(defn- parse-grouping-options [call-options ns-name func-name params]
   (vector
    (partial (to-fn (or *grouping*
-                       (:grouping call-options)
-                       (:grouping options)))
+                       (:grouping call-options)))
             ns-name func-name params)
    (partial (to-fn (or *grouping-results*
-                       (:grouping-results call-options)
-                       (:grouping-results options)))
+                       (:grouping-results call-options)))
             ns-name func-name params)
    (or *grouping-exceptions*
-       (:grouping-exceptions call-options)
-       (:grouping-exceptions options))))
+       (:grouping-exceptions call-options))))
 
 (defrecord ^:no-doc ServerRecord [sc data])
 (defn- fetch-server-data [addr zk-conn cluster-name options]
@@ -282,8 +278,9 @@
           (refresh-associated-servers this ns-name))))
 
     (let [fname (str ns-name "/" func-name)
+          call-options (merge options call-options)
           [grouping* grouping-results* grouping-exceptions*]
-          (parse-grouping-options options call-options
+          (parse-grouping-options call-options
                                   ns-name func-name params)
           target-servers (find-server this slacker-ns-servers ns-name grouping*)
           target-conns (filter identity (map @slacker-clients target-servers))]
@@ -317,8 +314,9 @@
           (refresh-associated-servers this ns-name))))
 
     (let [fname (str ns-name "/" func-name)
+          call-options (merge options call-options)
           [grouping* grouping-results* grouping-exceptions*]
-          (parse-grouping-options options call-options
+          (parse-grouping-options call-options
                                   ns-name func-name params)
           target-servers (find-server this slacker-ns-servers ns-name
                                       (partial grouping* ns-name func-name params))
@@ -433,7 +431,8 @@
 
   [cluster-name zk-server & {:keys [zk-root grouping grouping-results
                                     grouping-exceptions ping-interval
-                                    factory server-data-change-handler]
+                                    factory server-data-change-handler
+                                    interceptors]
                              :or {zk-root "/slacker/cluster"
                                   grouping :random
                                   grouping-results :single
@@ -451,7 +450,8 @@
                     :zk-root zk-root
                     :grouping grouping
                     :grouping-results grouping-results
-                    :grouping-exceptions grouping-exceptions))]
+                    :grouping-exceptions grouping-exceptions
+                    :interceptors interceptors))]
      ;; watch 'servers' node
      (zk/register-watcher zk-conn (fn [e]
                                     (on-zk-events e sc server-data-change-handler)))
