@@ -1,9 +1,14 @@
 (ns slacker.example.cluster-client
-  (:use [slacker.common])
-  (:use [slacker.client.cluster])
-  (:use [slacker.client :only [close-slackerc shutdown-slacker-client-factory]]))
+  (:require [slacker.common :refer :all]
+            [slacker.client.cluster :refer :all]
+            [slacker.client :refer [close-slackerc shutdown-slacker-client-factory]]
+            [slacker.interceptor :as si]))
 
-(def sc (clustered-slackerc "example-cluster" "127.0.0.1:2181"))
+(def interceptor {:before-merge (fn [results] (println "Before merge:" results) results)
+                  :after-merge (fn [result] (println "After merge:" result) result)})
+
+(def sc (clustered-slackerc "example-cluster" "127.0.0.1:2181"
+                            :interceptors interceptor))
 
 (use-remote 'sc 'slacker.example.api)
 (defn-remote sc async-timestamp
