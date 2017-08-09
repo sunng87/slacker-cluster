@@ -5,7 +5,7 @@
             [slacker.utils :as utils]
             [slacker.zk :as zk]
             [clojure.tools.logging :as logging]
-            [clojure.string :refer [split]])
+            [clojure.string :as string :refer [split]])
   (:import [java.net Socket]
            [org.apache.curator CuratorZookeeperClient]
            [org.apache.curator.framework.recipes.nodes PersistentNode]))
@@ -125,6 +125,14 @@
     (with-zk (.-zk-conn ^SlackerClusterServer slacker-server)
       (zk/set-data *zk-conn* data-path (utils/bytes-from-buf serialized-data)))))
 
+(defn get-server-data
+  "Fetch server data from zookeeper"
+  [slacker-server]
+  (let [data-path (first (.-zk-data ^SlackerClusterServer slacker-server))]
+    (with-zk (.-zk-conn ^SlackerClusterServer slacker-server)
+      (when-let [data-bytes (zk/data *zk-conn* data-path)]
+        (deserialize :clj (utils/buf-from-bytes data-bytes))))))
+
 (defn- extract-ns [fn-coll]
   (mapcat #(if (map? %) (keys %) [(ns-name %)]) fn-coll))
 
@@ -159,9 +167,8 @@
   (let [{zk-data :zk-data} server
         [_ zk-ephemeral-nodes leader-selectors] zk-data]
     (doseq [[ns-node lead-sel] (partition 2 (interleave zk-ephemeral-nodes leader-selectors))]
-      (when (> (.indexOf ^String (.getActualPath ^PersistentNode ns-node)
-                         (str "/namespaces/" ns-name))
-               0)
+      (when (string/index-of (.getActualPath ^PersistentNode ns-node)
+                             (str "/namespaces/" ns-name "/"))
         (zk/uncreate-persistent-ephemeral-node ns-node)
         (zk/stop-leader-election lead-sel)))))
 
@@ -176,6 +183,18 @@
       (zk/uncreate-persistent-ephemeral-node n))
     (doseq [n leader-selectors]
       (zk/stop-leader-election n))))
+
+(defn publish-ns!
+  "Publish a namespace to zookeeper. Typicially this is for republish a namespace after
+  `unpublish-ns!` or `unpublish-all!`."
+  [server ns-name]
+  (let [{zk-data :zk-data} server
+        [_ zk-ephemeral-notes leader-selectors] zk-data]
+    (doseq [[ns-node lead-sel] (partition 2 (interleave zk-ephemeral-notes leader-selectors))]
+      (when (string/index-of (.getActualPath ^PersistentNode ns-node)
+                             (str "/namespaces/" ns-name "/"))
+        (zk/create-persistent-ephemeral-node ns-node)
+        (zk/start-leader-election lead-sel)))))
 
 (defn stop-slacker-server
   "Shutdown slacker server, gracefully."

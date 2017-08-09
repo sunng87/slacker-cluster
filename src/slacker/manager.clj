@@ -5,8 +5,8 @@
   {"slacker.cluster.manager"
    {"offline" (fn [] (ss/unpublish-all! server))
     "offline-ns" (fn [nsname] (ss/unpublish-ns! server nsname))
-    "online-ns" (fn [nsname] )
+    "online-ns" (fn [nsname] (ss/publish-ns! server nsname))
     "online" (fn [] )
     "set-server-data!" (fn [data] (ss/set-server-data! server data))
-    "server-data" (fn [] )
-    "shutdown" (fn [] )}})
+    "server-data" (fn [] (ss/get-server-data server))
+    "shutdown" (fn [] (ss/stop-slacker-server server))}})
