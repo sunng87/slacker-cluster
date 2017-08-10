@@ -189,12 +189,24 @@
   `unpublish-ns!` or `unpublish-all!`."
   [server ns-name]
   (let [{zk-data :zk-data} server
-        [_ zk-ephemeral-notes leader-selectors] zk-data]
-    (doseq [[ns-node lead-sel] (partition 2 (interleave zk-ephemeral-notes leader-selectors))]
+        [_ zk-ephemeral-nodes leader-selectors] zk-data]
+    (doseq [[ns-node lead-sel] (partition 2 (interleave zk-ephemeral-nodes leader-selectors))]
       (when (string/index-of (.getActualPath ^PersistentNode ns-node)
                              (str "/namespaces/" ns-name "/"))
+        ;; FIXME: cannot start leader election with this
         (zk/create-persistent-ephemeral-node ns-node)
         (zk/start-leader-election lead-sel)))))
+
+(defn publish-all!
+  "Re-publish all namespaces hosted by this server."
+  [server]
+  (let [{zk-data :zk-data} server
+        [_ zk-ephemeral-nodes leader-selectors] zk-data]
+    ;; FIXME:
+    (doseq [n zk-ephemeral-nodes]
+      (zk/create-persistent-ephemeral-node n))
+    (doseq [n leader-selectors]
+      (zk/start-leader-election n))))
 
 (defn stop-slacker-server
   "Shutdown slacker server, gracefully."
