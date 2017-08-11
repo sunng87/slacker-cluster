@@ -101,6 +101,9 @@
                                              (listener-fn c))))
     (.start)))
 
+(defn requeue-leader-election [^LeaderSelector s]
+  (.requeue s))
+
 (defn stop-leader-election [^LeaderSelector s]
   (try (.close s)
        (catch IllegalStateException _
