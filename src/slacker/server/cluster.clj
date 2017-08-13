@@ -140,29 +140,6 @@
 (defn- extract-ns [fn-coll]
   (mapcat #(if (map? %) (keys %) [(ns-name %)]) fn-coll))
 
-(defn start-slacker-server
-  "Start a slacker server to expose all public functions under
-  a namespace. This function is enhanced for cluster support. You can
-  supply a zookeeper instance and a cluster name to the :cluster option
-  to register this server as a node of the cluster."
-  [fn-coll port & options]
-  (let [svr (apply slacker.server/start-slacker-server
-                   fn-coll port options)
-        {:keys [cluster server-data]
-         :as options} options
-        fn-coll (if (vector? fn-coll) fn-coll [fn-coll])
-        funcs (apply merge (map slacker.server/parse-funcs fn-coll))
-        zk-conn (zk/connect (:zk cluster) options)
-        zk-data (when-not (nil? cluster)
-                  (with-zk zk-conn
-                    (publish-cluster cluster port (extract-ns fn-coll)
-                                     funcs server-data)))]
-    (zk/register-error-handler zk-conn
-                               (fn [msg e]
-                                 (logging/warn e "Unhandled Error" msg)))
-
-    (SlackerClusterServer. svr zk-conn zk-data)))
-
 (defn unpublish-ns!
   "Unpublish a namespace from zookeeper, which means the service under the
   namespace on this server will be offline from client, while we still have
@@ -213,6 +190,47 @@
         (reset! node new-node)))
     (doseq [n leader-selectors]
       (try-acquire-leader n))))
+
+(declare stop-slacker-server)
+(defn- slacker-manager-api [server-ref]
+  {"slacker.cluster.manager"
+   {"offline" (fn [] (unpublish-all! @server-ref))
+    "offline-ns" (fn [nsname] (unpublish-ns! @server-ref nsname))
+    "online-ns" (fn [nsname] (publish-ns! @server-ref nsname))
+    "online" (fn [] (publish-all! @server-ref))
+    "set-server-data!" (fn [data] (set-server-data! @server-ref data))
+    "server-data" (fn [] (get-server-data @server-ref))
+    "shutdown" (fn [] (stop-slacker-server @server-ref))}})
+
+(defn start-slacker-server
+  "Start a slacker server to expose all public functions under
+  a namespace. This function is enhanced for cluster support. You can
+  supply a zookeeper instance and a cluster name to the :cluster option
+  to register this server as a node of the cluster."
+  [fn-coll port & options]
+  (let [svr (apply slacker.server/start-slacker-server
+                   fn-coll port options)
+        {:keys [cluster server-data manager]
+         :as options} options
+        fn-coll (if (vector? fn-coll) fn-coll [fn-coll])
+        server-ref (when manager (atom nil))
+        fn-coll (if manager
+                  (conj fn-coll (slacker-manager-api server-ref))
+                  fn-coll)
+        funcs (apply merge (map slacker.server/parse-funcs fn-coll))
+        zk-conn (zk/connect (:zk cluster) options)
+        zk-data (when-not (nil? cluster)
+                  (with-zk zk-conn
+                    (publish-cluster cluster port (extract-ns fn-coll)
+                                     funcs server-data)))]
+    (zk/register-error-handler zk-conn
+                               (fn [msg e]
+                                 (logging/warn e "Unhandled Error" msg)))
+
+    (let [server (SlackerClusterServer. svr zk-conn zk-data)]
+      (when server-ref
+        (reset! server-ref server))
+      server)))
 
 (defn stop-slacker-server
   "Shutdown slacker server, gracefully."
