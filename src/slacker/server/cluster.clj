@@ -125,17 +125,15 @@
   "Update server data for this server, clients will be notified"
   [slacker-server data]
   (let [serialized-data (serialize :clj data)
-        data-path (first (.-zk-data ^SlackerClusterServer slacker-server))]
-    (with-zk (.-zk-conn ^SlackerClusterServer slacker-server)
-      (zk/set-data *zk-conn* data-path (utils/bytes-from-buf serialized-data)))))
+        data-node (first (.-zk-data ^SlackerClusterServer slacker-server))]
+    (zk/set-persistent-ephemeral-node-data data-node (utils/bytes-from-buf serialized-data))))
 
 (defn get-server-data
   "Fetch server data from zookeeper"
   [slacker-server]
-  (let [data-path (first (.-zk-data ^SlackerClusterServer slacker-server))]
-    (with-zk (.-zk-conn ^SlackerClusterServer slacker-server)
-      (when-let [data-bytes (zk/data *zk-conn* data-path)]
-        (deserialize :clj (utils/buf-from-bytes data-bytes))))))
+  (let [data-node (first (.-zk-data ^SlackerClusterServer slacker-server))]
+    (when-let [data-bytes (zk/get-persistent-ephemeral-node-data data-node)]
+      (deserialize :clj (utils/buf-from-bytes data-bytes)))))
 
 (defn- extract-ns [fn-coll]
   (mapcat #(if (map? %) (keys %) [(ns-name %)]) fn-coll))
@@ -208,17 +206,17 @@
   supply a zookeeper instance and a cluster name to the :cluster option
   to register this server as a node of the cluster."
   [fn-coll port & options]
-  (let [svr (apply slacker.server/start-slacker-server
-                   fn-coll port options)
-        {:keys [cluster server-data manager]
-         :as options} options
+  (let [{:keys [cluster server-data manager]
+         :as options-map} options
         fn-coll (if (vector? fn-coll) fn-coll [fn-coll])
         server-ref (when manager (atom nil))
         fn-coll (if manager
                   (conj fn-coll (slacker-manager-api server-ref))
                   fn-coll)
+        server-backend (apply slacker.server/start-slacker-server
+                              fn-coll port options)
         funcs (apply merge (map slacker.server/parse-funcs fn-coll))
-        zk-conn (zk/connect (:zk cluster) options)
+        zk-conn (zk/connect (:zk cluster) options-map)
         zk-data (when-not (nil? cluster)
                   (with-zk zk-conn
                     (publish-cluster cluster port (extract-ns fn-coll)
@@ -227,7 +225,7 @@
                                (fn [msg e]
                                  (logging/warn e "Unhandled Error" msg)))
 
-    (let [server (SlackerClusterServer. svr zk-conn zk-data)]
+    (let [server (SlackerClusterServer. server-backend zk-conn zk-data)]
       (when server-ref
         (reset! server-ref server))
       server)))
