@@ -198,7 +198,7 @@
     "online" (fn [] (publish-all! @server-ref))
     "set-server-data!" (fn [data] (set-server-data! @server-ref data))
     "server-data" (fn [] (get-server-data @server-ref))
-    "shutdown" (fn [] (stop-slacker-server @server-ref))}})
+    "shutdown" (fn [] (do (future (stop-slacker-server @server-ref)) nil))}})
 
 (defn start-slacker-server
   "Start a slacker server to expose all public functions under
@@ -238,16 +238,18 @@
                             (getZookeeperClient)
                             (getZooKeeper)
                             (getSessionTimeout))
-        [server-ephemeral-node ephemeral-nodes leader-selectors] zk-data]
+        [server-ephemeral-node ns-ephemeral-nodes leader-selectors] zk-data]
     ;; delete server nodes
     (zk/uncreate-persistent-ephemeral-node server-ephemeral-node)
     ;; delete ns nodes
-    (doseq [{node :node} ephemeral-nodes]
+    (doseq [{node :node} ns-ephemeral-nodes]
       (zk/uncreate-persistent-ephemeral-node @node))
     ;; stop leader selector
-    (doseq [{selector :selector} leader-selectors]
+    (doseq [{selector :selector blocker :blocker :as ls} leader-selectors]
+      (release-leader ls)
       (zk/stop-leader-election selector))
     ;; close connection
+    (logging/info "closing zk connection")
     (zk/close zk-conn)
 
     ;; wait a session timeout to make sure clients are notified
