@@ -208,18 +208,19 @@
   [fn-coll port & options]
   (let [{:keys [cluster server-data manager]
          :as options-map} options
-        fn-coll (if (vector? fn-coll) fn-coll [fn-coll])
+        user-fn-coll (if (vector? fn-coll) fn-coll [fn-coll])
         server-ref (when manager (atom nil))
         fn-coll (if manager
-                  (conj fn-coll (slacker-manager-api server-ref))
-                  fn-coll)
+                  (conj user-fn-coll (slacker-manager-api server-ref))
+                  user-fn-coll)
         server-backend (apply slacker.server/start-slacker-server
                               fn-coll port options)
         funcs (apply merge (map slacker.server/parse-funcs fn-coll))
         zk-conn (zk/connect (:zk cluster) options-map)
         zk-data (when-not (nil? cluster)
                   (with-zk zk-conn
-                    (publish-cluster cluster port (extract-ns fn-coll)
+                    ;; manager ns is not available on zk
+                    (publish-cluster cluster port (extract-ns user-fn-coll)
                                      funcs server-data)))]
     (zk/register-error-handler zk-conn
                                (fn [msg e]
