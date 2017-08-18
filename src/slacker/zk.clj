@@ -81,17 +81,25 @@
         (creatingParentsIfNeeded)
         (forPath path ^bytes data))))
 
-(defn create-persistent-ephemeral-node [^CuratorFramework conn
-                                        ^String path
-                                        ^bytes data]
-  (doto (PersistentEphemeralNode. conn
-                                  PersistentEphemeralNode$Mode/EPHEMERAL
-                                  path
-                                  (or data (byte-array 0)))
-    (.start)))
+(defn create-persistent-ephemeral-node
+  ([conn path] (create-persistent-ephemeral-node conn path nil))
+  ([^CuratorFramework conn
+    ^String path
+    ^bytes data]
+   (doto (PersistentEphemeralNode. conn
+                                   PersistentEphemeralNode$Mode/EPHEMERAL
+                                   path
+                                   (or data (byte-array 0)))
+     (.start))))
 
 (defn uncreate-persistent-ephemeral-node [^PersistentEphemeralNode node]
   (.close node))
+
+(defn get-persistent-ephemeral-node-data [^PersistentEphemeralNode node]
+  (.getData node))
+
+(defn set-persistent-ephemeral-node-data [^PersistentEphemeralNode node ^bytes data]
+  (.setData node data))
 
 (defn start-leader-election [^CuratorFramework conn
                              ^String mutex-path
@@ -100,6 +108,9 @@
                                            (takeLeadership [c]
                                              (listener-fn c))))
     (.start)))
+
+(defn requeue-leader-election [^LeaderSelector s]
+  (.requeue s))
 
 (defn stop-leader-election [^LeaderSelector s]
   (try (.close s)

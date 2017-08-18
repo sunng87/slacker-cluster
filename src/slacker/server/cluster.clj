@@ -5,7 +5,7 @@
             [slacker.utils :as utils]
             [slacker.zk :as zk]
             [clojure.tools.logging :as logging]
-            [clojure.string :refer [split]])
+            [clojure.string :as string :refer [split]])
   (:import [java.net Socket]
            [org.apache.curator CuratorZookeeperClient]
            [org.apache.curator.framework.recipes.nodes PersistentNode]))
@@ -39,30 +39,34 @@
                    :persistent? persistent?
                    :data data)))
 
+(defn- select-leader [zk-root cluster-name ns-name server-node]
+  (let [blocker (atom (promise))
+        leader-path (utils/zk-path zk-root cluster-name "namespaces"
+                                         ns-name "_leader")
+        leader-mutex-path (utils/zk-path leader-path "mutex")]
+    (create-node *zk-conn* leader-mutex-path
+                 :persistent? true)
+    (let [selector (zk/start-leader-election *zk-conn*
+                                             leader-mutex-path
+                                             (fn [conn]
+                                               (logging/infof "%s is becoming the leader of %s" server-node ns-name)
+                                               (zk/set-data conn
+                                                            leader-path
+                                                            (.getBytes ^String server-node "UTF-8"))
+                                               ;; block forever
+                                               @@blocker))]
+      {:selector selector
+       :blocker blocker})))
+
 (defn- select-leaders [zk-root cluster-name nss server-node]
-  (doall
-   (map #(let [blocker (promise)
-               leader-path (utils/zk-path
-                            zk-root
-                            cluster-name
-                            "namespaces"
-                            %
-                            "_leader")
-               leader-mutex-path (utils/zk-path
-                                  leader-path
-                                  "mutex")]
-           (create-node *zk-conn* leader-mutex-path
-                        :persistent? true)
-           (zk/start-leader-election *zk-conn*
-                                     leader-mutex-path
-                                     (fn [conn]
-                                       (logging/infof "%s is becoming the leader of %s" server-node %)
-                                       (zk/set-data conn
-                                                    leader-path
-                                                    (.getBytes ^String server-node "UTF-8"))
-                                       ;; block forever
-                                       @blocker)))
-        nss)))
+  (doall (map #(select-leader zk-root cluster-name % server-node) nss)))
+
+(defn- release-leader [{blocker :blocker}]
+  (deliver @blocker nil))
+
+(defn- try-acquire-leader [{selector :selector blocker :blocker}]
+  (reset! blocker (promise))
+  (zk/requeue-leader-election selector))
 
 (defn publish-cluster
   "publish server information to zookeeper as cluster for client"
@@ -72,24 +76,19 @@
         server-node (str (or (cluster :node)
                              (auto-detect-ip (first (split (:zk cluster) #","))))
                          ":" port)
-        server-path (utils/zk-path zk-root cluster-name
-                                   "servers" server-node)
+        server-path (utils/zk-path zk-root cluster-name "servers" server-node)
         server-path-data (utils/bytes-from-buf (serialize :clj server-data))
         funcs (keys funcs-map)
 
         ns-path-fn (fn [p] (utils/zk-path zk-root cluster-name "namespaces" p server-node))
-        ephemeral-servers-node-paths (conj (map #(vector (ns-path-fn %) nil) ns-names)
-                                           [server-path server-path-data])]
+        ephemeral-ns-node-paths (map ns-path-fn ns-names)]
 
     ;; persistent nodes
     (create-node *zk-conn* (utils/zk-path zk-root cluster-name "servers")
                  :persistent? true)
 
     (doseq [nn ns-names]
-      (create-node *zk-conn* (utils/zk-path zk-root
-                                            cluster-name
-                                            "namespaces"
-                                            nn)
+      (create-node *zk-conn* (utils/zk-path zk-root cluster-name "namespaces" nn)
                    :persistent? true))
 
     (doseq [fname funcs]
@@ -102,12 +101,17 @@
                      :persistent? true
                      :data (utils/bytes-from-buf node-data))))
 
-    (let [ephemeral-nodes (doall (map #(do
-                                         (try (zk/delete *zk-conn* (first %)) (catch Exception _))
-                                         (zk/create-persistent-ephemeral-node *zk-conn* (first %) (second %)))
-                                      ephemeral-servers-node-paths))
+    (let [server-ephemeral-node (do
+                                  (try (zk/delete *zk-conn* server-path) (catch Exception _))
+                                  (zk/create-persistent-ephemeral-node
+                                   *zk-conn* server-path server-path-data))
+          ns-ephemeral-nodes (doall (map #(do
+                                            (try (zk/delete *zk-conn* %) (catch Exception _))
+                                            {:path %
+                                             :node (atom (zk/create-persistent-ephemeral-node *zk-conn* %))})
+                                         ephemeral-ns-node-paths))
           leader-selectors (select-leaders zk-root cluster-name ns-names server-node)]
-      [server-path ephemeral-nodes leader-selectors])))
+      [server-ephemeral-node ns-ephemeral-nodes leader-selectors])))
 
 (defmacro ^:private with-zk
   "publish server information to specifized zookeeper for client"
@@ -121,35 +125,18 @@
   "Update server data for this server, clients will be notified"
   [slacker-server data]
   (let [serialized-data (serialize :clj data)
-        data-path (first (.-zk-data ^SlackerClusterServer slacker-server))]
-    (with-zk (.-zk-conn ^SlackerClusterServer slacker-server)
-      (zk/set-data *zk-conn* data-path (utils/bytes-from-buf serialized-data)))))
+        data-node (first (.-zk-data ^SlackerClusterServer slacker-server))]
+    (zk/set-persistent-ephemeral-node-data data-node (utils/bytes-from-buf serialized-data))))
+
+(defn get-server-data
+  "Fetch server data from zookeeper"
+  [slacker-server]
+  (let [data-node (first (.-zk-data ^SlackerClusterServer slacker-server))]
+    (when-let [data-bytes (zk/get-persistent-ephemeral-node-data data-node)]
+      (deserialize :clj (utils/buf-from-bytes data-bytes)))))
 
 (defn- extract-ns [fn-coll]
   (mapcat #(if (map? %) (keys %) [(ns-name %)]) fn-coll))
-
-(defn start-slacker-server
-  "Start a slacker server to expose all public functions under
-  a namespace. This function is enhanced for cluster support. You can
-  supply a zookeeper instance and a cluster name to the :cluster option
-  to register this server as a node of the cluster."
-  [fn-coll port & options]
-  (let [svr (apply slacker.server/start-slacker-server
-                   fn-coll port options)
-        {:keys [cluster server-data]
-         :as options} options
-        fn-coll (if (vector? fn-coll) fn-coll [fn-coll])
-        funcs (apply merge (map slacker.server/parse-funcs fn-coll))
-        zk-conn (zk/connect (:zk cluster) options)
-        zk-data (when-not (nil? cluster)
-                  (with-zk zk-conn
-                    (publish-cluster cluster port (extract-ns fn-coll)
-                                     funcs server-data)))]
-    (zk/register-error-handler zk-conn
-                               (fn [msg e]
-                                 (logging/warn e "Unhandled Error" msg)))
-
-    (SlackerClusterServer. svr zk-conn zk-data)))
 
 (defn unpublish-ns!
   "Unpublish a namespace from zookeeper, which means the service under the
@@ -158,12 +145,11 @@
   [server ns-name]
   (let [{zk-data :zk-data} server
         [_ zk-ephemeral-nodes leader-selectors] zk-data]
-    (doseq [[ns-node lead-sel] (partition 2 (interleave zk-ephemeral-nodes leader-selectors))]
-      (when (> (.indexOf ^String (.getActualPath ^PersistentNode ns-node)
-                         (str "/namespaces/" ns-name))
-               0)
-        (zk/uncreate-persistent-ephemeral-node ns-node)
-        (zk/stop-leader-election lead-sel)))))
+    (doseq [[{path :path node :node} lead-sel]
+            (partition 2 (interleave zk-ephemeral-nodes leader-selectors))]
+      (when (string/index-of path (str "/namespaces/" ns-name "/"))
+        (zk/uncreate-persistent-ephemeral-node @node)
+        (release-leader lead-sel)))))
 
 (defn unpublish-all!
   "Unpublish all namespaces on this server. This is helpful when you need
@@ -172,20 +158,98 @@
   [server]
   (let [{zk-data :zk-data} server
         [_ zk-ephemeral-nodes leader-selectors] zk-data]
-    (doseq [n zk-ephemeral-nodes]
-      (zk/uncreate-persistent-ephemeral-node n))
+    (doseq [{n :node} zk-ephemeral-nodes]
+      (zk/uncreate-persistent-ephemeral-node @n))
     (doseq [n leader-selectors]
-      (zk/stop-leader-election n))))
+      (release-leader n))))
+
+(defn publish-ns!
+  "Publish a namespace to zookeeper. Typicially this is for republish a namespace after
+  `unpublish-ns!` or `unpublish-all!`."
+  [server ns-name]
+  (let [{zk-data :zk-data zk-conn :zk-conn} server
+        [_ zk-ephemeral-nodes leader-selectors] zk-data]
+    (doseq [[{path :path node :node} lead-sel]
+            (partition 2 (interleave zk-ephemeral-nodes leader-selectors))]
+      (when (string/index-of path (str "/namespaces/" ns-name "/"))
+        (let [new-node (with-zk zk-conn
+                         (zk/create-persistent-ephemeral-node *zk-conn* path))]
+          (reset! node new-node))
+        (try-acquire-leader lead-sel)))))
+
+(defn publish-all!
+  "Re-publish all namespaces hosted by this server."
+  [server]
+  (let [{zk-data :zk-data zk-conn :zk-conn} server
+        [_ zk-ephemeral-nodes leader-selectors] zk-data]
+    (doseq [{path :path node :node} zk-ephemeral-nodes]
+      (let [new-node (with-zk zk-conn
+                       (zk/create-persistent-ephemeral-node *zk-conn* path))]
+        (reset! node new-node)))
+    (doseq [n leader-selectors]
+      (try-acquire-leader n))))
+
+(declare stop-slacker-server)
+(defn- slacker-manager-api [server-ref]
+  {"slacker.cluster.manager"
+   {"offline" (fn [] (unpublish-all! @server-ref))
+    "offline-ns" (fn [nsname] (unpublish-ns! @server-ref nsname))
+    "online-ns" (fn [nsname] (publish-ns! @server-ref nsname))
+    "online" (fn [] (publish-all! @server-ref))
+    "set-server-data!" (fn [data] (set-server-data! @server-ref data))
+    "server-data" (fn [] (get-server-data @server-ref))
+    "shutdown" (fn [] (do (future (stop-slacker-server @server-ref)) nil))}})
+
+(defn start-slacker-server
+  "Start a slacker server to expose all public functions under
+  a namespace. This function is enhanced for cluster support. You can
+  supply a zookeeper instance and a cluster name to the :cluster option
+  to register this server as a node of the cluster."
+  [fn-coll port & options]
+  (let [{:keys [cluster server-data manager]
+         :as options-map} options
+        fn-coll (if (vector? fn-coll) fn-coll [fn-coll])
+        server-ref (when manager (atom nil))
+        fn-coll (if manager
+                  (conj fn-coll (slacker-manager-api server-ref))
+                  fn-coll)
+        server-backend (apply slacker.server/start-slacker-server
+                              fn-coll port options)
+        funcs (apply merge (map slacker.server/parse-funcs fn-coll))
+        zk-conn (zk/connect (:zk cluster) options-map)
+        zk-data (when-not (nil? cluster)
+                  (with-zk zk-conn
+                    (publish-cluster cluster port (extract-ns fn-coll)
+                                     funcs server-data)))]
+    (zk/register-error-handler zk-conn
+                               (fn [msg e]
+                                 (logging/warn e "Unhandled Error" msg)))
+
+    (let [server (SlackerClusterServer. server-backend zk-conn zk-data)]
+      (when server-ref
+        (reset! server-ref server))
+      server)))
 
 (defn stop-slacker-server
   "Shutdown slacker server, gracefully."
   [server]
-  (unpublish-all! server)
-  (let [{svr :svr zk-conn :zk-conn} server
+  (let [{svr :svr zk-conn :zk-conn zk-data :zk-data} server
         session-timeout (.. zk-conn
                             (getZookeeperClient)
                             (getZooKeeper)
-                            (getSessionTimeout))]
+                            (getSessionTimeout))
+        [server-ephemeral-node ns-ephemeral-nodes leader-selectors] zk-data]
+    ;; delete server nodes
+    (zk/uncreate-persistent-ephemeral-node server-ephemeral-node)
+    ;; delete ns nodes
+    (doseq [{node :node} ns-ephemeral-nodes]
+      (zk/uncreate-persistent-ephemeral-node @node))
+    ;; stop leader selector
+    (doseq [{selector :selector blocker :blocker :as ls} leader-selectors]
+      (release-leader ls)
+      (zk/stop-leader-election selector))
+    ;; close connection
+    (logging/info "closing zk connection")
     (zk/close zk-conn)
 
     ;; wait a session timeout to make sure clients are notified
