@@ -14,7 +14,7 @@
                                   [log4j "1.2.17"]
                                   [org.slf4j/slf4j-log4j12 "1.7.25"]]}
              :clojure18 {:dependencies [[org.clojure/clojure "1.8.0"]]}
-             :clojure19 {:dependencies [[org.clojure/clojure "1.9.0-alpha17"]]}}
+             :clojure19 {:dependencies [[org.clojure/clojure "1.9.0-beta2"]]}}
   :plugins [[lein-codox "0.9.5"]]
   :global-vars {*warn-on-reflection* true}
   :aliases {"run-example-server" ["with-profile" "default,dev,clojure18,example" "run" "-m" "slacker.example.cluster-server"]
