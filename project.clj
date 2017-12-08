@@ -1,4 +1,4 @@
-(defproject slacker/slacker-cluster "0.15.0"
+(defproject slacker/slacker-cluster "0.15.1-SNAPSHOT"
   :description "Cluster support for slacker"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
