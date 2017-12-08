@@ -6,6 +6,7 @@
   :dependencies [[org.apache.curator/curator-framework "4.0.0"
                   :exclusions [jline]]
                  [org.apache.curator/curator-recipes "4.0.0"]
+                 [manifold "0.1.6"]
                  [org.clojure/tools.logging "0.4.0"]]
   :profiles {:example {:source-paths ["examples"]
                        :dependencies [[org.apache.curator/curator-test "4.0.0"]]}
