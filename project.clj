@@ -6,11 +6,12 @@
   :dependencies [[org.apache.curator/curator-framework "4.0.0"
                   :exclusions [jline]]
                  [org.apache.curator/curator-recipes "4.0.0"]
+                 [manifold "0.1.6"]
                  [org.clojure/tools.logging "0.4.0"]]
   :profiles {:example {:source-paths ["examples"]
                        :dependencies [[org.apache.curator/curator-test "4.0.0"]]}
              :dev {:dependencies [[org.clojure/clojure "1.8.0"]
-                                  [slacker "0.15.1"]
+                                  [slacker "0.16.0-SNAPSHOT"]
                                   [log4j "1.2.17"]
                                   [org.slf4j/slf4j-log4j12 "1.7.25"]]}
              :clojure18 {:dependencies [[org.clojure/clojure "1.8.0"]]}
