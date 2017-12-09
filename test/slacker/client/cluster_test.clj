@@ -7,6 +7,42 @@
             [slacker.zk :as zk])
   (:import [slacker.client.cluster ClusterEnabledSlackerClient]))
 
+(deftest test-group-call-results
+  (is (:cause (group-call-results (constantly :vector)
+                                  :all
+                                  [{:cause {:error true}}
+                                   {:cause {:error true}}])))
+  (let [r (group-call-results (constantly :vector)
+                              :all
+                              [{:cause {:error true}}
+                               {}])]
+    (is (not (:cause r))
+        (= 1 (count (:result r)))))
+  (is (:cause (group-call-results (constantly :vector)
+                                  :any
+                                  [{:cause {:error true}}
+                                   {:result 1}])))
+  (is (count
+       (:result
+        (group-call-results (constantly :vector)
+                            :any
+                            [{:result 1}
+                             {:result 2}]))))
+  (let [r (group-call-results (constantly :map)
+                              :any
+                              [{:result 1 :server "1"}
+                               {:result 2 :server "2"}])]
+    (is (= 1 (-> r :result (get "1")))))
+  (let [grf (fn []
+              (fn [results]
+                (reduce + (map :result results))))
+        r (group-call-results grf
+                              :all
+                              [{:result 1}
+                               {:result 2}])]
+    (is (= 3 (:result r)))))
+
+
 (deftest sync-call-test
   (testing "unavialble-value"
     (let [client (ClusterEnabledSlackerClient. "dummy-cluster"
