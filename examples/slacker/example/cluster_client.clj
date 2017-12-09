@@ -29,14 +29,14 @@
 ;; requests, and return a map of result, of which key is the address
 ;; of provider. Returns a promise, and a callback is registered and
 ;; will be called when result is ready.
-(defn-remote sc async-timestamp
+(defn-remote sc async-timestamp-cb
   :remote-name "timestamp"
   :remote-ns "slacker.example.api"
   :grouping :least-in-flight
   :grouping-results :map
   :async? true
   :callback (fn [e r]
-              (println "++++" r)))
+              (println "Callback:" r)))
 
 ;; You can access more then 1 remote namespace.
 (defn-remote sc echo2
@@ -49,6 +49,7 @@
   (println (echo 23))
   (println (all-timestamp))
   (println "Async call timestamp:" @(async-timestamp))
+  (async-timestamp-cb)
   (try (make-error) (catch Exception e (println "Expected exception:" (ex-data e))))
   (println (echo2 "Echo" "Some" "Data"))
 

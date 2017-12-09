@@ -4,6 +4,7 @@
             [slacker.serialization :refer :all]
             [slacker.utils :as utils]
             [slacker.zk :as zk]
+            [manifold.deferred :as d]
             [clojure.string :refer [split]]
             [clojure.tools.logging :as logging])
   (:import [clojure.lang IDeref IPending IBlockingDeref]
@@ -161,31 +162,16 @@
                                            {:grouping-results grouping-results-config
                                             :results valid-results})))))))))
 
-(deftype ^:no-doc GroupedPromise [grouping-fn promises call-options]
-  IDeref
-  (deref [_]
-    (let [call-results (mapv deref promises)]
-      (->> call-results
-           ((:before-merge (:interceptors call-options) identity))
-           grouping-fn
-           ((:after-merge (:interceptors call-options) identity)))))
-  IBlockingDeref
-  (deref [this timeout timeout-var]
-    (let [time-start (System/currentTimeMillis)]
-      (loop [prmss promises]
-        (when (not-empty prmss)
-          (deref (first prmss) timeout nil)
-          (when (< (- (System/currentTimeMillis) time-start) timeout)
-            (recur (rest prmss))))))
-    (if (every? realized? promises)
-      (deref this)
-      timeout-var))
-  IPending
-  (isRealized [_]
-    (every? realized? promises)))
-
-(defn ^:no-doc grouped-promise [grouping-fn promises call-options]
-  (GroupedPromise. grouping-fn promises call-options))
+(defn ^:no-doc grouped-deferreds [grouping-fn deferreds call-options callback]
+  (let [post-group-fn (fn [call-results]
+                        (->> call-results
+                             ((:before-merge (:interceptors call-options) identity))
+                             grouping-fn
+                             ((:after-merge (:interceptors call-options) identity))))
+        zipped-deferred (d/chain (apply d/zip deferreds) vec post-group-fn)]
+    (when callback
+      (d/chain zipped-deferred #(callback (:cause %) (:result %))))
+    zipped-deferred))
 
 (defn- parse-grouping-options [call-options ns-name func-name params]
   (vector
@@ -323,37 +309,26 @@
           target-conns (filter identity (map @slacker-clients target-servers))
           grouping-fn (partial group-call-results
                                grouping-results*
-                               grouping-exceptions*)
-          cb-results (atom [])
-          target-servers-count (count target-servers)
-          sys-cb (when cb
-                   (fn [excp data]
-                     (when (= (count (swap! cb-results conj
-                                            {:cause excp :result data}))
-                              target-servers-count)
-                       (let [grouped-results (->> @cb-results
-                                                  ((:before-merge (:interceptors call-options) identity))
-                                                  grouping-fn
-                                                  ((:after-merge (:interceptors call-options) identity)))]
-                         (cb (:cause grouped-results) (:result grouped-results))))))]
+                               grouping-exceptions*)]
       (if (empty? target-conns)
-        (doto (promise) (deliver (if (contains? call-options :unavailable-value)
-                                   {:result (:unavailable-value call-options)
-                                    :fname fname}
-                                   {:cause {:error :unavailable :servers target-servers}
-                                    :fname fname})))
+        (doto (d/deferred)
+          (d/success! (if (contains? call-options :unavailable-value)
+                        {:result (:unavailable-value call-options)
+                         :fname fname}
+                        {:cause {:error :unavailable :servers target-servers}
+                         :fname fname})))
         (do
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
-          (let [call-prms (mapv
-                           #(async-call-remote @(.sc ^ServerRecord %)
-                                               ns-name
-                                               func-name
-                                               params
-                                               sys-cb
-                                               call-options)
-                           target-conns)]
-            (grouped-promise grouping-fn call-prms call-options))))))
+          (let [call-deferreds (mapv
+                                #(async-call-remote @(.sc ^ServerRecord %)
+                                                    ns-name
+                                                    func-name
+                                                    params
+                                                    nil
+                                                    call-options)
+                                target-conns)]
+            (grouped-deferreds grouping-fn call-deferreds call-options cb))))))
   (close [this]
     (zk/close zk-conn)
     (doseq [s (vals @slacker-clients)]
