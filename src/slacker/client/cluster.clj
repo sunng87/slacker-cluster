@@ -321,13 +321,15 @@
           (logging/debug (str "calling " ns-name "/"
                               func-name " on " target-servers))
           (let [call-deferreds (mapv
-                                #(async-call-remote @(.sc ^ServerRecord %)
-                                                    ns-name
-                                                    func-name
-                                                    params
-                                                    nil
-                                                    call-options)
-                                target-conns)]
+                                #(d/chain (async-call-remote @(.sc ^ServerRecord %1)
+                                                             ns-name
+                                                             func-name
+                                                             params
+                                                             nil
+                                                             call-options)
+                                          (fn [result] (assoc result :server %2)))
+                                target-conns
+                                target-servers)]
             (grouped-deferreds grouping-fn call-deferreds call-options cb))))))
   (close [this]
     (zk/close zk-conn)
