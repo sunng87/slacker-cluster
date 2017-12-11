@@ -92,7 +92,9 @@ You can also return constant value:
 
 * `:all` call on all servers available
 * `:random` pick a random server to call
+* `:first` always call the first server in client cached server list
 * `:leader` always pick the leader node in cluster (new in 0.12)
+* `:least-in-flight` call the server with least pending requests
 
 ### Grouping results
 
@@ -105,6 +107,7 @@ define how many values to return for the call. Possible values are:
 * `:vector` returns values from different servers as a vector
 * `:map` returns values from different servers as a map, with server's
   host:port as key
+* `:nil` always ignore the result and return nil
 * `(fn [ns-name fn-name params])` a function that returns values
   above. You can use different grouping-results policy according to
   function you call.
