@@ -163,6 +163,11 @@ On another terminal, you can run the example client:
 
 By checking logs, you can trace the calls on each server instance.
 
+## API doc
+
+[API doc](https://sunng87.github.io/slacker-cluster) is generated
+against latest master branch, with lein-codox with Travis CI.
+
 ## License
 
 Copyright (C) 2011-2016 Sun Ning
