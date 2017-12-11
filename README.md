@@ -141,6 +141,24 @@ If there is no server in the cluster provides the function, you can
 add `:unavailable-value` option on `defn-remote` for return value on
 this situation.
 
+## Server Manager
+
+When the server started with option `:manager true`, a management
+API is exposed as a namespace: `slacker.cluster.manager`.
+
+There are functions under this namespace:
+
+* `(offline)` put this server to offline mode then no more requests will
+  be sent to it. The server is still running and you can call it from
+  address.
+* `(offline-ns nsname)` put a namespace on this server to offline
+  mode.
+* `(online)` put the server to online mode.
+* `(online-ns nsname)` put a namespace on this server to online mode.
+* `(set-server-data! data)` set the data associated with this server.
+* `(server-data)` get the data with this server.
+* `(shutdown)` shutdown the server completely.
+
 ## Examples
 
 There is a cluster example in the source code. To run the server,
