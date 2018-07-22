@@ -25,9 +25,6 @@ instance in your topology.
 
 ![latest version on clojars](https://clojars.org/slacker/slacker-cluster/latest-version.svg)
 
-* Stable: 0.15.x
-* Development: 0.16.0-SNAPSHOT
-
 ## Cluster Enabled Slacker Server
 
 On the server side, using the server starter function from
