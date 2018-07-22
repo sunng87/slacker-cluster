@@ -22,7 +22,8 @@
   *grouping-exceptions* nil)
 
 (declare try-update-server-data!
-         find-least-in-flight-server)
+         find-least-in-flight-server
+         find-weighted-server)
 
 (defprotocol CoordinatorAwareClient
   (refresh-associated-servers [this ns])
