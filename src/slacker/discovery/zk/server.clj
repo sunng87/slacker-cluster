@@ -1,4 +1,4 @@
-(ns slacker.discovery.zk
+(ns slacker.discovery.zk.server
   (:require [slacker.zk :as zk]
             [slacker.serialization :refer :all]
             [slacker.utils :as utils]

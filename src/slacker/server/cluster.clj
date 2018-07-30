@@ -2,7 +2,7 @@
   (:require [slacker.common :refer :all]
             [slacker.server]
             [slacker.discovery.protocol :as dp]
-            [slacker.discovery.zk :as dzk]
+            [slacker.discovery.zk.server :as dzk]
             [clojure.tools.logging :as logging]))
 
 (defrecord SlackerClusterServer [server service-registry])
