@@ -400,7 +400,7 @@
       * `:random` choose a server by random (default)
       * `:leader` use current leader server
       * `:least-in-flight` use server with least pending requests
-      * `weighted` randomly select a server using `:weight` from server data as weight
+      * `:weighted` randomly select a server using `:weight` from server data as weight
       * `:all` call function on all servers
       * `(fn [ns fname params slacker-client servers])` specify a function to choose. You can also return :random or :all in this function
   * grouping-results: when you call functions on multiple server, you can specify how many results return for the call. Note that if you use :vector or :map, you will break default behavior of the function. Possible values:
