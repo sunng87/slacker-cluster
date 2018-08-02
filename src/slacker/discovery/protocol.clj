@@ -14,4 +14,8 @@
   (fetch-ns-servers! [this the-ns-name])
   (fetch-all-servers! [this])
   (fetch-server-data [this server])
+  (get-server-data-cache [this])
+  (fetch-ns-functions [this the-ns-name])
+  (fetch-fn-metadata [this fname])
+  (ns-server-mappings [this])
   (destroy! [this]))

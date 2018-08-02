@@ -7,7 +7,7 @@
 
 (defn- ns-callback [e discover nsname]
   (case (:event-type e)
-    :NodeDeleted ((.-ns-server-delete-callback discover) nsname)
+    :NodeDeleted (swap! (.-cached-ns-mapping discover) dissoc nsname)
     :NodeChildrenChanged (fetch-ns-servers! discover nsname)
     :NodeDataChanged (fetch-ns-servers! sc nsname)
     nil))
@@ -16,6 +16,13 @@
   (case (:event-type e)
     :NodeChildrenChanged (fetch-all-servers! discover)
     nil))
+
+(defn- try-update-server-data! [e discover server-data-change-handler]
+  (when-let [server-addr (second (re-matches #"/.+/servers/(.+?)" (:path e)))]
+    (logging/debugf "received notification for server data change on %s" server-addr)
+    (dp/fetch-server-data discover server-addr)
+    (when server-data-change-handler
+      (server-data-change-handler server-addr new-data))))
 
 (defn- on-zk-events [e discover server-data-change-handler]
   (logging/info "getting zookeeper event" e)
@@ -30,7 +37,7 @@
       (and
        (= :NodeDataChanged (:event-type e))
        (> (.indexOf ^String (:path e) "servers") 0))
-      (try-update-server-data! e sc server-data-change-handler)
+      (try-update-server-data! e discover server-data-change-handler)
 
       ;; event on `namespaces` nodes
       :else
@@ -41,14 +48,15 @@
     (and (= (:event-type e) :None)
          (= (:keeper-state e) :SyncConnected))
     (do
-      (doseq [n (keys (get-ns-mappings sc))]
+      (doseq [n (keys (ns-server-mappings discover))]
         (fetch-ns-servers! discover n))
-      (when (not-empty (get-connected-servers sc))
+      (when (not-empty (ns-server-mappings discover))
         (fetch-all-servers discover)))))
 
 (defrecord ZookeeperDiscover [zk-conn cluster-name
+                              cached-ns-mapping
+                              cached-server-data
                               ns-server-update-callback
-                              ns-server-delete-callback
                               servers-update-callback
                               options]
   dp/SlackerRegistryClient
@@ -74,7 +82,8 @@
       (logging/infof "Setting leader node %s" leader-node)
       ;; update servers for this namespace
       (logging/infof "Setting servers for %s: %s" nsname servers)
-      (ns-server-update-callback servers)))
+      (swap! cached-ns-mapping assoc the-ns-name servers)
+      (ns-server-update-callback the-ns-name servers)))
 
   (fetch-all-servers! [this]
     (logging/infof "starting to refresh online servers list")
@@ -84,15 +93,32 @@
                                          :watch? true))]
       (servers-update-callback (or servers #{}))))
 
-  (fetch-server-data [this server]
+  (fetch-server-data! [this server]
     (let [zk-server-path (utils/zk-path (:zk-root options) (.-cluster-name this)
                                         "servers" server)]
       ;; added watcher for server data changes
       (try (when-let [raw-node (zk/data zk-conn zk-server-path :watch? true)]
-             (s/deserialize :clj (utils/buf-from-bytes raw-node)))
+             (let [result (s/deserialize :clj (utils/buf-from-bytes raw-node))]
+               (swap! (.-cached-server-data this) assoc server result)
+               result))
            (catch Exception e
              (logging/warn e "Error getting server data from zookeeper.")
              nil))))
+
+  (get-server-data-cache [this]
+    @(.-cached-server-data this))
+
+  (fetch-fn-metadata [this fname]
+    (let [zk-root (:zk-root (.-option this))
+          fnode (utils/zk-path  cluster-name "functions" fname)]
+      (when-let [node-data (zk/data (.-zk-conn this) fnode)]
+        (s/deserialize :clj (utils/buf-from-bytes (:data node-data))))))
+
+  (fetch-ns-functions [this the-ns-name]
+    (let [ns-root (utils/zk-path (:zk-root options) cluster-name
+                                 "functions" the-ns-name)
+          fnames (or (zk/children (.-zk-conn this) ns-root) [])]
+      (map #(str the-ns-name "/" %) fnames)))
 
   (destroy! [this]
     (zk/close zk-conn)))
