@@ -8,21 +8,21 @@
 (defn- ns-callback [e discover nsname]
   (case (:event-type e)
     :NodeDeleted (swap! (.-cached-ns-mapping discover) dissoc nsname)
-    :NodeChildrenChanged (fetch-ns-servers! discover nsname)
-    :NodeDataChanged (fetch-ns-servers! sc nsname)
+    :NodeChildrenChanged (dp/fetch-ns-servers! discover nsname)
+    :NodeDataChanged (dp/fetch-ns-servers! discover nsname)
     nil))
 
 (defn- clients-callback [e discover]
   (case (:event-type e)
-    :NodeChildrenChanged (fetch-all-servers! discover)
+    :NodeChildrenChanged (dp/fetch-all-servers! discover)
     nil))
 
 (defn- try-update-server-data! [e discover server-data-change-handler]
   (when-let [server-addr (second (re-matches #"/.+/servers/(.+?)" (:path e)))]
     (logging/debugf "received notification for server data change on %s" server-addr)
-    (dp/fetch-server-data discover server-addr)
-    (when server-data-change-handler
-      (server-data-change-handler server-addr new-data))))
+    (let [data (dp/fetch-server-data discover server-addr)]
+      (when server-data-change-handler
+        (server-data-change-handler server-addr data)))))
 
 (defn- on-zk-events [e discover server-data-change-handler]
   (logging/info "getting zookeeper event" e)
@@ -48,10 +48,10 @@
     (and (= (:event-type e) :None)
          (= (:keeper-state e) :SyncConnected))
     (do
-      (doseq [n (keys (ns-server-mappings discover))]
-        (fetch-ns-servers! discover n))
-      (when (not-empty (ns-server-mappings discover))
-        (fetch-all-servers discover)))))
+      (doseq [n (keys (dp/ns-server-mappings discover))]
+        (dp/fetch-ns-servers! discover n))
+      (when (not-empty (dp/ns-server-mappings discover))
+        (dp/fetch-all-servers! discover)))))
 
 (defrecord ZookeeperDiscover [zk-conn cluster-name
                               cached-ns-mapping
@@ -62,9 +62,9 @@
   dp/SlackerRegistryClient
 
   (fetch-ns-servers! [this the-ns-name]
-    (logging/infof "starting to refresh servers of %s" nsname)
+    (logging/infof "starting to refresh servers of %s" the-ns-name)
     (let [node-path (utils/zk-path (:zk-root (.-options this))
-                                   (.-cluster-name this) "namespaces" nsname)
+                                   (.-cluster-name this) "namespaces" the-ns-name)
           servers (doall (remove utils/meta-path?
                                  (zk/children (.-zk-conn this) node-path :watch? true)))
           servers (or servers [])
@@ -81,7 +81,7 @@
                     servers)]
       (logging/infof "Setting leader node %s" leader-node)
       ;; update servers for this namespace
-      (logging/infof "Setting servers for %s: %s" nsname servers)
+      (logging/infof "Setting servers for %s: %s" the-ns-name servers)
       (swap! cached-ns-mapping assoc the-ns-name servers)
       (ns-server-update-callback the-ns-name servers)))
 
@@ -93,7 +93,7 @@
                                          :watch? true))]
       (servers-update-callback (or servers #{}))))
 
-  (fetch-server-data! [this server]
+  (fetch-server-data [this server]
     (let [zk-server-path (utils/zk-path (:zk-root options) (.-cluster-name this)
                                         "servers" server)]
       ;; added watcher for server data changes
@@ -123,10 +123,17 @@
   (destroy! [this]
     (zk/close zk-conn)))
 
-(defn zookeeper-discover [zk-addr cluster-name server-data-handler options]
+(defn zookeeper-discover [zk-addr cluster-name
+                          ns-server-update-callback
+                          servers-update-callback
+                          server-data-handler options]
   (let [zk-conn (zk/connect zk-addr options)
         zk-root (:zk-root options)
-        discover (ZookeeperDiscover. zk-conn cluster-name (atom nil) options)]
+        discover (ZookeeperDiscover. zk-conn cluster-name
+                                     (atom {}) (atom {})
+                                     ns-server-update-callback
+                                     servers-update-callback
+                                     options)]
     ;; watch 'servers' node
     (zk/register-watcher zk-conn (fn [e]
                                    (on-zk-events e discover server-data-handler)))

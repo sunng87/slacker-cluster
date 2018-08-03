@@ -5,6 +5,7 @@
             [slacker.serialization :refer :all]
             [slacker.utils :as utils]
             [slacker.discovery.protocol :as ds]
+            [slacker.discovery.zk.client :as zk]
             [manifold.deferred :as d]
             [clojure.string :refer [split]]
             [clojure.tools.logging :as logging])
@@ -140,19 +141,21 @@
    (or *grouping-exceptions*
        (:grouping-exceptions call-options))))
 
-(defn- ns-server-update-callback [cluster-slacker-client the-ns-name servers]
+(defn- ns-server-update-callback [cluster-slacker-client-ref the-ns-name servers]
   ;; establish connection if the server is not connected
-  (doseq [s servers]
-    (when-not (contains? @slacker-clients s)
-      (let [sc (apply create-slackerc s (flatten (vec options)))
-            data (ds/fetch-server-data (.-discover cluster-slacker-client) s)]
-        (logging/info "establishing connection to " s "with data" data)
-        (swap! (.-slacker-clients cluster-slacker-client)
-               assoc s sc)))))
 
-(defn- servers-update-callback [cluster-slacker-client servers]
+  (let [slacker-clients (.-slacker-clients @cluster-slacker-client-ref)
+        options (.-options @cluster-slacker-client-ref)]
+    (doseq [s servers]
+      (when-not (contains? @slacker-clients s)
+        (let [sc (apply create-slackerc s (flatten (vec options)))
+              data (ds/fetch-server-data (.-discover @cluster-slacker-client-ref) s)]
+          (logging/info "establishing connection to " s "with data" data)
+          (swap! slacker-clients assoc s sc))))))
+
+(defn- servers-update-callback [cluster-slacker-client-ref servers]
   ;; close connection to offline servers, remove from slacker-clients
-  (let [slacker-clients (.-slacker-clients cluster-slacker-client)]
+  (let [slacker-clients (.-slacker-clients @cluster-slacker-client-ref)]
     (doseq [s (keys @slacker-clients)]
       (when-not (contains? servers s)
         (logging/infof "closing connection of %s" s)
@@ -161,7 +164,7 @@
           (slacker.client/close-slackerc s))))))
 
 (deftype ^:no-doc ClusterEnabledSlackerClient
-         [cluster-name discover slacker-clients options]
+         [discover slacker-clients options]
   CoordinatorAwareClient
 
   (refresh-associated-servers [this the-ns-name]
@@ -258,7 +261,7 @@
                                 target-servers)]
             (grouped-deferreds grouping-fn call-deferreds call-options cb))))))
   (close [this]
-    (zk/close zk-conn)
+    (ds/destroy! (.-discover this))
     (doseq [s (vals @slacker-clients)]
       (slacker.client/close-slackerc s))
     (reset! slacker-clients {}))
@@ -325,25 +328,23 @@
                                   ping-interval 0}
                              :as options}]
   (delay
-   (let [zk-conn (zk/connect zk-server options)
-         slacker-clients (atom {})
-         slacker-ns-servers (atom {})
-         sc (ClusterEnabledSlackerClient.
-             cluster-name zk-conn
-             slacker-clients slacker-ns-servers
-             (assoc options
-                    :zk-root zk-root
-                    :grouping grouping
-                    :grouping-results grouping-results
-                    :grouping-exceptions grouping-exceptions
-                    :interceptors interceptors))]
-     ;; watch 'servers' node
-     (zk/register-watcher zk-conn (fn [e]
-                                    (on-zk-events e sc server-data-change-handler)))
-     (zk/register-error-handler zk-conn
-                                (fn [msg e]
-                                  (logging/warn e "Unhandled ZooKeeper Error" msg)))
-     (zk/children zk-conn
-                  (utils/zk-path zk-root cluster-name "servers")
-                  :watch? true)
-     sc)))
+   (let [options (assoc options
+                        :zk-root zk-root
+                        :grouping grouping
+                        :grouping-results grouping-results
+                        :grouping-exceptions grouping-exceptions
+                        :interceptors interceptors)
+
+         sc-ref (atom nil)
+
+         ns-server-update-callback (partial ns-server-update-callback sc-ref)
+         servers-update-callback (partial ns-server-update-callback sc-ref)
+         server-data-change-handler (partial server-data-change-handler sc-ref)
+
+         zk-discover (zk/zookeeper-discover zk-server cluster-name
+                                        ns-server-update-callback
+                                        servers-update-callback
+                                        server-data-change-handler
+                                        options)
+         slacker-clients (atom {})]
+     (ClusterEnabledSlackerClient. zk-discover slacker-clients options))))
