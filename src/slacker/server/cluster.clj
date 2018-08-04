@@ -96,9 +96,9 @@
 
     (doseq [fname funcs]
       (let [^ByteBuf node-data (serialize :clj
-                                 (select-keys
-                                  (meta (funcs-map fname))
-                                  [:name :doc :arglists]))]
+                                          (select-keys
+                                           (meta (funcs-map fname))
+                                           [:name :doc :arglists]))]
         (create-node *zk-conn*
                      (utils/zk-path zk-root cluster-name "functions" fname)
                      :persistent? true
