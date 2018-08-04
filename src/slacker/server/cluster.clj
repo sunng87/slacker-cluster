@@ -15,21 +15,20 @@
 (defn- auto-detect-ip
   "detect IP by connecting to zookeeper"
   [zk-addrs]
-  (if-let [self-ip (some (fn [zk-addr]
-                           (try
-                             (let [zk-address (split zk-addr #":")
-                                   zk-ip (first zk-address)
-                                   zk-port (Integer/parseInt (second zk-address))]
-                               (with-open [socket (Socket.) ]
-                                 (.connect ^Socket socket (InetSocketAddress. ^String zk-ip (int zk-port)) 5000)
-                                 (when (.isConnected socket)
-                                   (.getHostAddress (.getLocalAddress socket)))))
-                             (catch Exception ex
-                               (logging/warnf ex "Auto detect ip with zookeeper address:\"%s\" failed, try next one"
-                                              zk-addr))))
-                         zk-addrs)]
-    self-ip
-    (throw (RuntimeException. "Auto detect ip failed"))))
+  (or (some (fn [zk-addr]
+              (try
+                (let [zk-address (split zk-addr #":")
+                      zk-ip (first zk-address)
+                      zk-port (Integer/parseInt (second zk-address))]
+                  (with-open [socket (Socket.)]
+                    (.connect ^Socket socket (InetSocketAddress. ^String zk-ip (int zk-port)) 5000)
+                    (when (.isConnected socket)
+                      (.getHostAddress (.getLocalAddress socket)))))
+                (catch Exception ex
+                  (logging/warnf ex "Auto detect ip with zookeeper address:\"%s\" failed, try next one"
+                                 zk-addr))))
+            zk-addrs)
+      (throw (RuntimeException. "Auto detect ip failed"))))
 
 (defn- create-node
   "get zk connector & node  :persistent?
