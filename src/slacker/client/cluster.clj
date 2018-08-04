@@ -9,7 +9,8 @@
             [clojure.string :refer [split]]
             [clojure.tools.logging :as logging])
   (:import [clojure.lang IDeref IPending IBlockingDeref]
-           [slacker.client.common SlackerClient]))
+           [slacker.client.common SlackerClient]
+           (io.netty.buffer ByteBuf)))
 
 (def ^{:dynamic true
        :doc "cluster grouping function"}
@@ -117,7 +118,10 @@
 (defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
   (let [fnode (utils/zk-path zk-root cluster-name "functions" fname)]
     (if-let [node-data (zk/data zk-conn fnode)]
-      (deserialize :clj (utils/buf-from-bytes (:data node-data))))))
+      (let [^ByteBuf buf (utils/buf-from-bytes (:data node-data))
+            data (deserialize :clj buf)]
+        (.release buf)
+        data))))
 
 (defn- to-fn [f]
   (if-not (fn? f)
@@ -192,7 +196,10 @@
   (let [zk-server-path (utils/zk-path (:zk-root options) cluster-name "servers" addr)]
     ;; added watcher for server data changes
     (try (when-let [raw-node (zk/data zk-conn zk-server-path :watch? true)]
-           (deserialize :clj (utils/buf-from-bytes raw-node)))
+           (let [^ByteBuf buf (utils/buf-from-bytes raw-node)
+                 data (deserialize :clj buf)]
+             (.release buf)
+             data))
          (catch Exception e
            (logging/warn e "Error getting server data from zookeeper.")
            nil))))
