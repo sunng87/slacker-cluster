@@ -335,7 +335,7 @@
                         :grouping-exceptions grouping-exceptions
                         :interceptors interceptors)
 
-         sc-ref (atom nil)
+         sc-ref (promise)
 
          ns-server-update-callback (partial ns-server-update-callback sc-ref)
          servers-update-callback (partial ns-server-update-callback sc-ref)
@@ -346,5 +346,8 @@
                                         servers-update-callback
                                         server-data-change-handler
                                         options)
-         slacker-clients (atom {})]
-     (ClusterEnabledSlackerClient. zk-discover slacker-clients options))))
+         slacker-clients (atom {})
+
+         the-client (ClusterEnabledSlackerClient. zk-discover slacker-clients options)]
+     (deliver sc-ref the-client)
+     the-client)))

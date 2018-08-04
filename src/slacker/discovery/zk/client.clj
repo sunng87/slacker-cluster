@@ -108,6 +108,9 @@
   (get-server-data-cache [this]
     @(.-cached-server-data this))
 
+  (ns-server-mappings [this]
+    @(.-cached-ns-mapping this))
+
   (fetch-fn-metadata [this fname]
     (let [zk-root (:zk-root (.-option this))
           fnode (utils/zk-path  cluster-name "functions" fname)]
