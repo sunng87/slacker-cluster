@@ -10,7 +10,8 @@
             [clojure.string :refer [split]]
             [clojure.tools.logging :as logging])
   (:import [clojure.lang IDeref IPending IBlockingDeref]
-           [slacker.client.common SlackerClient]))
+           [slacker.client.common SlackerClient]
+           (io.netty.buffer ByteBuf)))
 
 (def ^{:dynamic true
        :doc "cluster grouping function"}
