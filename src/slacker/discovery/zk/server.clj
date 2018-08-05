@@ -5,7 +5,7 @@
             [slacker.discovery.protocol :as dp]
             [clojure.string :as string :refer [split]]
             [clojure.tools.logging :as logging])
-  (:import [java.net Socket]))
+  (:import [java.net Socket InetSocketAddress]))
 
 (defn- create-node
   "get zk connector & node  :persistent?
@@ -27,12 +27,22 @@
 
 (defn- auto-detect-ip
   "detect IP by connecting to zookeeper"
-  [zk-addr]
-  (let [zk-address (split zk-addr #":")
-        zk-ip (first zk-address)
-        zk-port (Integer/parseInt (second zk-address))]
-    (with-open [socket (Socket. ^String ^Integer zk-ip zk-port)]
-      (.getHostAddress (.getLocalAddress socket)))))
+  [zk-addrs]
+  (or (some (fn [zk-addr]
+              (try
+                (let [zk-address (split zk-addr #":")
+                      zk-ip (first zk-address)
+                      zk-port (Integer/parseInt (second zk-address))]
+                  (with-open [socket (Socket.)]
+                    (.connect ^Socket socket (InetSocketAddress. ^String zk-ip (int zk-port)) 5000)
+                    (.getHostAddress (.getLocalAddress socket))))
+                (catch Exception ex
+                  (logging/warnf ex "Auto detect ip with zookeeper address:\"%s\" failed, try next one"
+                                 zk-addr))))
+            zk-addrs)
+      (throw (RuntimeException. "Auto detect ip failed"))))
+
+
 
 (defn- select-leader [zk-conn zk-root cluster-name ns-name server-node]
   (let [blocker (atom (promise))
@@ -71,10 +81,10 @@
   (let [cluster-name (cluster :name)
         zk-root (cluster :zk-root "/slacker/cluster/")
         server-node (str (or (cluster :node)
-                             (auto-detect-ip (first (split (:zk cluster) #","))))
+                             (auto-detect-ip (split (:zk cluster) #",")))
                          ":" port)
         server-path (utils/zk-path zk-root cluster-name "servers" server-node)
-        server-path-data (utils/bytes-from-buf (serialize :clj server-data))
+        server-path-data (utils/serialize-clj-to-bytes server-data)
         funcs (keys funcs-map)
 
         ns-path-fn (fn [p] (utils/zk-path zk-root cluster-name "namespaces" p server-node))
@@ -89,10 +99,9 @@
                    :persistent? true))
 
     (doseq [fname funcs]
-      (let [node-data (serialize :clj
-                                 (select-keys
-                                  (meta (funcs-map fname))
-                                  [:name :doc :arglists]))]
+      (let [node-data (utils/serialize-clj-to-bytes (select-keys
+                                                     (meta (funcs-map fname))
+                                                     [:name :doc :arglists]))]
         (create-node zk-conn
                      (utils/zk-path zk-root cluster-name "functions" fname)
                      :persistent? true
@@ -171,15 +180,14 @@
       (try-acquire-leader n))))
 
   (set-server-data! [this data]
-    (let [serialized-data (serialize :clj data)
+    (let [serialized-data (utils/serialize-clj-to-bytes data)
           data-node (.-server-ephemeral-node @(.-zk-data this))]
-      (zk/set-persistent-ephemeral-node-data data-node
-                                             (utils/bytes-from-buf serialized-data))))
+      (zk/set-persistent-ephemeral-node-data data-node serialized-data)))
 
   (get-server-data [this]
     (let [data-node (.-server-ephemeral-node @(.-zk-data this))]
       (when-let [data-bytes (zk/get-persistent-ephemeral-node-data data-node)]
-        (deserialize :clj (utils/buf-from-bytes data-bytes))))))
+        (utils/deserialize-clj-from-bytes data-bytes)))))
 
 (defn zookeeper-service-discovery [zk-addr options]
   (let [zk-conn (zk/connect zk-addr options)]
@@ -189,4 +197,4 @@
     (ZookeeperInfo. zk-conn (atom nil))))
 
 (defn get-slacker-server-working-ip [zk-addrs]
-  (auto-detect-ip (first (split zk-addrs #","))))
+  (auto-detect-ip (split zk-addrs #",")))

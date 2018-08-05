@@ -98,7 +98,7 @@
                                         "servers" server)]
       ;; added watcher for server data changes
       (try (when-let [raw-node (zk/data zk-conn zk-server-path :watch? true)]
-             (let [result (s/deserialize :clj (utils/buf-from-bytes raw-node))]
+             (let [result (utils/deserialize-clj-from-bytes raw-node)]
                (swap! (.-cached-server-data this) assoc server result)
                result))
            (catch Exception e
@@ -115,7 +115,7 @@
     (let [zk-root (:zk-root (.-option this))
           fnode (utils/zk-path  cluster-name "functions" fname)]
       (when-let [node-data (zk/data (.-zk-conn this) fnode)]
-        (s/deserialize :clj (utils/buf-from-bytes (:data node-data))))))
+        (utils/deserialize-clj-from-bytes node-data))))
 
   (fetch-ns-functions [this the-ns-name]
     (let [ns-root (utils/zk-path (:zk-root options) cluster-name

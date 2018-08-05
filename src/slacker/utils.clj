@@ -1,6 +1,7 @@
 (ns ^:no-doc slacker.utils
   (:refer-clojure :exclude [replace])
-  (:require [clojure.string :refer [join replace]])
+  (:require [clojure.string :refer [join replace]]
+            [slacker.serialization :as s])
   (:import [io.netty.buffer ByteBuf Unpooled ByteBufUtil]))
 
 
@@ -36,3 +37,11 @@
          ~@body
          (finally
            (.release ~buf))))))
+
+(defn serialize-clj-to-bytes [data]
+  (with-buf [buf (s/serialize :clj data)]
+    (bytes-from-buf buf)))
+
+(defn deserialize-clj-from-bytes [bytes]
+  (with-buf [buf (buf-from-bytes bytes)]
+    (s/deserialize :clj buf)))
