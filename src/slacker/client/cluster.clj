@@ -118,10 +118,8 @@
 (defn- meta-data-from-zk [zk-conn zk-root cluster-name fname]
   (let [fnode (utils/zk-path zk-root cluster-name "functions" fname)]
     (if-let [node-data (zk/data zk-conn fnode)]
-      (let [^ByteBuf buf (utils/buf-from-bytes (:data node-data))
-            data (deserialize :clj buf)]
-        (.release buf)
-        data))))
+      (utils/with-buf [buf (utils/buf-from-bytes (:data node-data))]
+        (deserialize :clj buf)))))
 
 (defn- to-fn [f]
   (if-not (fn? f)
@@ -196,10 +194,8 @@
   (let [zk-server-path (utils/zk-path (:zk-root options) cluster-name "servers" addr)]
     ;; added watcher for server data changes
     (try (when-let [raw-node (zk/data zk-conn zk-server-path :watch? true)]
-           (let [^ByteBuf buf (utils/buf-from-bytes raw-node)
-                 data (deserialize :clj buf)]
-             (.release buf)
-             data))
+           (utils/with-buf [buf (utils/buf-from-bytes raw-node)]
+             (deserialize :clj buf)))
          (catch Exception e
            (logging/warn e "Error getting server data from zookeeper.")
            nil))))

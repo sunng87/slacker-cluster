@@ -86,9 +86,8 @@
                              (auto-detect-ip (split (:zk cluster) #",")))
                          ":" port)
         server-path (utils/zk-path zk-root cluster-name "servers" server-node)
-        ^ByteBuf server-data-buf (serialize :clj server-data)
-        server-path-data (utils/bytes-from-buf server-data-buf)
-        _ (.release server-data-buf)
+        server-path-data (utils/with-buf [buf (serialize :clj server-data)]
+                           (utils/bytes-from-buf buf))
         funcs (keys funcs-map)
 
         ns-path-fn (fn [p] (utils/zk-path zk-root cluster-name "namespaces" p server-node))
@@ -103,15 +102,13 @@
                    :persistent? true))
 
     (doseq [fname funcs]
-      (let [^ByteBuf node-data (serialize :clj
-                                          (select-keys
-                                           (meta (funcs-map fname))
-                                           [:name :doc :arglists]))]
+      (utils/with-buf [buf (serialize :clj (select-keys
+                                            (meta (funcs-map fname))
+                                            [:name :doc :arglists]))]
         (create-node *zk-conn*
                      (utils/zk-path zk-root cluster-name "functions" fname)
                      :persistent? true
-                     :data (utils/bytes-from-buf node-data))
-        (.release node-data)))
+                     :data (utils/bytes-from-buf buf))))
 
     (let [server-ephemeral-node (do
                                   (try (zk/delete *zk-conn* server-path) (catch Exception _))
@@ -136,22 +133,17 @@
 (defn set-server-data!
   "Update server data for this server, clients will be notified"
   [slacker-server data]
-  (let [^ByteBuf serialized-data (serialize :clj data)
-        data-node (first (.-zk-data ^SlackerClusterServer slacker-server))]
-    (zk/set-persistent-ephemeral-node-data data-node (utils/bytes-from-buf serialized-data))
-    (.release serialized-data)))
+  (utils/with-buf [buf (serialize :clj data)]
+    (let [data-node (first (.-zk-data ^SlackerClusterServer slacker-server))]
+      (zk/set-persistent-ephemeral-node-data data-node (utils/bytes-from-buf buf)))))
 
 (defn get-server-data
   "Fetch server data from zookeeper"
   [slacker-server]
   (let [data-node (first (.-zk-data ^SlackerClusterServer slacker-server))]
     (when-let [data-bytes (zk/get-persistent-ephemeral-node-data data-node)]
-      (let [^ByteBuf data-buf (utils/buf-from-bytes data-bytes)
-            data (deserialize :clj data-buf)]
-        (.release data-buf)
-        data))))
-
-(serialize :clj {:a 1 :b 2})
+      (utils/with-buf [buf (utils/buf-from-bytes data-bytes)]
+        (deserialize :clj buf)))))
 
 (defn- extract-ns [fn-coll]
   (mapcat #(if (map? %) (keys %) [(ns-name %)]) fn-coll))

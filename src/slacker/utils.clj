@@ -28,3 +28,11 @@
 
 (defn bytes-from-buf [buf]
   (ByteBufUtil/getBytes ^ByteBuf buf))
+
+(defmacro with-buf [buf-binding & body]
+  (let [buf (first buf-binding)]
+    `(let ~buf-binding
+       (try
+         ~@body
+         (finally
+           (.release ~buf))))))
