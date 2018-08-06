@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [slacker.client.common :refer :all]
             [slacker.client.cluster :refer :all]
+            [slacker.discovery.protocol :as ds]
             [slacker.serialization :refer :all]
             [slacker.utils :refer [zk-path]]
             [slacker.zk :as zk])
@@ -45,18 +46,20 @@
 
 (deftest sync-call-test
   (testing "unavialble-value"
-    (let [client (ClusterEnabledSlackerClient. "dummy-cluster"
-                                               nil (atom {}) (atom {}) {})
-          d-ns "dummy-ns"
+    (let [d-ns "dummy-ns"
           unavailable-value "N/A"]
-      (with-redefs [zk-path (constantly "dummy-path")
+      (with-redefs [zk/connect (constantly nil)
+                    zk-path (constantly "dummy-path")
+                    zk/register-watcher (constantly nil)
+                    zk/register-error-handler (constantly nil)
                     zk/children (constantly ["a" "b"])
                     zk/data (constantly (.getBytes "dummy-dataq" "utf-8"))]
-        (is (= (sync-call-remote client d-ns "dummy-fn" []
+        (let [client @(clustered-slackerc "dummy-cluster" "127.0.0.1")]
+          (is (= (sync-call-remote client d-ns "dummy-fn" []
                                  {:grouping (constantly [])
                                   :unavailable-value unavailable-value})
-               {:result unavailable-value :fname "dummy-ns/dummy-fn"}))
-        (is (= (sync-call-remote client d-ns "dummy-fn" []
+                 {:result unavailable-value :fname "dummy-ns/dummy-fn"}))
+          (is (= (sync-call-remote client d-ns "dummy-fn" []
                                  {:grouping (constantly [])})
                {:cause {:error :unavailable :servers []}
-                :fname "dummy-ns/dummy-fn"}))))))
+                :fname "dummy-ns/dummy-fn"})))))))
