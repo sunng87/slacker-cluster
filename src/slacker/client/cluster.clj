@@ -160,9 +160,9 @@
     (doseq [s (keys @slacker-clients)]
       (when-not (contains? servers s)
         (logging/infof "closing connection of %s" s)
-        (let [server-record (@slacker-clients s)]
+        (let [the-client (@slacker-clients s)]
           (swap! slacker-clients dissoc s)
-          (slacker.client/close-slackerc s))))))
+          (slacker.client/close-slackerc the-client))))))
 
 (deftype ^:no-doc ClusterEnabledSlackerClient
          [discover slacker-clients options]
@@ -339,7 +339,7 @@
          sc-ref (promise)
 
          ns-server-update-callback (partial ns-server-update-callback sc-ref)
-         servers-update-callback (partial ns-server-update-callback sc-ref)
+         servers-update-callback (partial servers-update-callback sc-ref)
          server-data-change-handler (partial server-data-change-handler sc-ref)
 
          zk-discover (zk/zookeeper-discover zk-server cluster-name

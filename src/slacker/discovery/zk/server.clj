@@ -105,7 +105,7 @@
         (create-node zk-conn
                      (utils/zk-path zk-root cluster-name "functions" fname)
                      :persistent? true
-                     :data (utils/bytes-from-buf node-data))))
+                     :data node-data)))
 
     (let [server-ephemeral-node (do
                                   (try (zk/delete zk-conn server-path) (catch Exception _))
