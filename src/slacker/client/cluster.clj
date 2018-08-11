@@ -143,18 +143,18 @@
 (defn- ns-server-update-callback [cluster-slacker-client-ref the-ns-name servers]
   ;; establish connection if the server is not connected
 
-  (let [slacker-clients (.-slacker-clients @cluster-slacker-client-ref)
-        options (.-options @cluster-slacker-client-ref)]
+  (let [slacker-clients (.-slacker-clients ^ClusterEnabledSlackerClient @cluster-slacker-client-ref)
+        options (.-options ^ClusterEnabledSlackerClient @cluster-slacker-client-ref)]
     (doseq [s servers]
       (when-not (contains? @slacker-clients s)
         (let [sc (apply create-slackerc s (flatten (vec options)))
-              data (ds/fetch-server-data (.-discover @cluster-slacker-client-ref) s)]
+              data (ds/fetch-server-data (.-discover ^ClusterEnabledSlackerClient @cluster-slacker-client-ref) s)]
           (logging/info "establishing connection to " s "with data" data)
           (swap! slacker-clients assoc s sc))))))
 
 (defn- servers-update-callback [cluster-slacker-client-ref servers]
   ;; close connection to offline servers, remove from slacker-clients
-  (let [slacker-clients (.-slacker-clients @cluster-slacker-client-ref)]
+  (let [slacker-clients (.-slacker-clients ^ClusterEnabledSlackerClient @cluster-slacker-client-ref)]
     (doseq [s (keys @slacker-clients)]
       (when-not (contains? servers s)
         (logging/infof "closing connection of %s" s)
