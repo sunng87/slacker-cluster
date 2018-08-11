@@ -97,8 +97,8 @@
                      :nested (map :cause call-results)})
 
       (and
-       (not-empty failed-results)
-       (= grouping-exceptions :any))
+       (= grouping-exceptions :any)
+       (not-empty failed-results))
       (assoc req-info
              :cause {:code :failed
                      :servers (map :server failed-results)
