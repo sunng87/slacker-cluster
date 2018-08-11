@@ -83,8 +83,7 @@
                                    grouping-exceptions
                                    call-results]
   (let [req-info (dissoc (first call-results) :result :cause)
-        failed-results (filter :cause call-results)
-        valid-results (remove :cause call-results)
+        {valid-results false failed-results true} (group-by #(contains? % :cause) call-results)
         grouping-exceptions-results (when (not-empty failed-results)
                                       (cond
                                         (fn? grouping-exceptions)
