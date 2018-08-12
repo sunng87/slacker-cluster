@@ -10,7 +10,7 @@
             [clojure.string :refer [split]]
             [clojure.tools.logging :as logging])
   (:import [clojure.lang IDeref IPending IBlockingDeref]
-           [slacker.client.common SlackerClient]
+           [slacker.client.common SlackerClient ]
            (io.netty.buffer ByteBuf)))
 
 (def ^{:dynamic true
@@ -82,43 +82,41 @@
 (defn ^:no-doc group-call-results [grouping-results
                                    grouping-exceptions
                                    call-results]
-  (let [req-info (dissoc (first call-results) :result :cause)]
-    (doseq [r (filter :cause call-results)]
-      (logging/info (str "error calling "
+  (let [req-info (dissoc (first call-results) :result :cause)
+        {valid-results false failed-results true} (group-by #(contains? % :cause) call-results)
+        grouping-exceptions-results (when (not-empty failed-results)
+                                      (cond
+                                        (fn? grouping-exceptions)
+                                        (grouping-exceptions valid-results failed-results)
+
+                                        (= grouping-exceptions :any)
+                                        {:servers (map :server failed-results)
+                                         :nested (map :cause failed-results)}
+
+                                        (empty? valid-results)
+                                        {:nested (map :cause call-results)}))]
+    (doseq [r failed-results]
+      (logging/warn (str "error calling "
                          (:server r)
                          ". Error: "
                          (:cause r))))
-    (cond
-      ;; there's exception occured and we don't want to ignore
-      (every? :cause call-results)
-      (assoc req-info
-             :cause {:code :failed
-                     :nested (map :cause call-results)})
 
-      (and
-       (some :cause call-results)
-       (= grouping-exceptions :any))
-      (assoc req-info
-             :cause {:code :failed
-                     :servers (map :server (filter :cause call-results))
-                     :nested (map :cause (filter :cause call-results))})
-
-
-      :else
-      (let [valid-results (remove :cause call-results)
-            grouping-results-config (grouping-results)]
+    (if grouping-exceptions-results
+      (assoc req-info :cause (merge {:code :failed}
+                                    grouping-exceptions-results))
+      (let [grouping-results-config (grouping-results)]
         (assoc req-info
-               :result (case grouping-results-config
-                         :nil nil
-                         :single (:result (first valid-results))
-                         :vector (mapv :result valid-results)
-                         :map (into {} (map #(vector (:server %) (:result %))
-                                            valid-results))
-                         (if (fn? grouping-results-config)
-                           (grouping-results-config valid-results)
-                           (throw (ex-info "Unsupported grouping-results value"
-                                           {:grouping-results grouping-results-config
-                                            :results valid-results})))))))))
+          :result (case grouping-results-config
+                    :nil nil
+                    :single (:result (first valid-results))
+                    :vector (mapv :result valid-results)
+                    :map (into {} (map #(vector (:server %) (:result %))
+                                       valid-results))
+                    (if (fn? grouping-results-config)
+                      (grouping-results-config valid-results)
+                      (throw (ex-info "Unsupported grouping-results value"
+                                      {:grouping-results grouping-results-config
+                                       :results          valid-results})))))))))
 
 (defn ^:no-doc grouped-deferreds [grouping-fn deferreds call-options callback]
   (let [post-group-fn (fn [call-results]
@@ -141,28 +139,6 @@
             ns-name func-name params)
    (or *grouping-exceptions*
        (:grouping-exceptions call-options))))
-
-(defn- ns-server-update-callback [cluster-slacker-client-ref the-ns-name servers]
-  ;; establish connection if the server is not connected
-
-  (let [slacker-clients (.-slacker-clients @cluster-slacker-client-ref)
-        options (.-options @cluster-slacker-client-ref)]
-    (doseq [s servers]
-      (when-not (contains? @slacker-clients s)
-        (let [sc (apply create-slackerc s (flatten (vec options)))
-              data (ds/fetch-server-data (.-discover @cluster-slacker-client-ref) s)]
-          (logging/info "establishing connection to " s "with data" data)
-          (swap! slacker-clients assoc s sc))))))
-
-(defn- servers-update-callback [cluster-slacker-client-ref servers]
-  ;; close connection to offline servers, remove from slacker-clients
-  (let [slacker-clients (.-slacker-clients @cluster-slacker-client-ref)]
-    (doseq [s (keys @slacker-clients)]
-      (when-not (contains? servers s)
-        (logging/infof "closing connection of %s" s)
-        (let [the-client (@slacker-clients s)]
-          (swap! slacker-clients dissoc s)
-          (slacker.client/close-slackerc the-client))))))
 
 (deftype ^:no-doc ClusterEnabledSlackerClient
          [discover slacker-clients options]
@@ -274,6 +250,28 @@
      (case cmd
        :functions (ds/fetch-ns-functions discover args)
        :meta (ds/fetch-fn-metadata discover args))}))
+
+(defn- ns-server-update-callback [cluster-slacker-client-ref the-ns-name servers]
+  ;; establish connection if the server is not connected
+
+  (let [slacker-clients (.-slacker-clients ^ClusterEnabledSlackerClient @cluster-slacker-client-ref)
+        options (.-options ^ClusterEnabledSlackerClient @cluster-slacker-client-ref)]
+    (doseq [s servers]
+      (when-not (contains? @slacker-clients s)
+        (let [sc (apply create-slackerc s (flatten (vec options)))
+              data (ds/fetch-server-data (.-discover ^ClusterEnabledSlackerClient @cluster-slacker-client-ref) s)]
+          (logging/info "establishing connection to " s "with data" data)
+          (swap! slacker-clients assoc s sc))))))
+
+(defn- servers-update-callback [cluster-slacker-client-ref servers]
+  ;; close connection to offline servers, remove from slacker-clients
+  (let [slacker-clients (.-slacker-clients ^ClusterEnabledSlackerClient @cluster-slacker-client-ref)]
+    (doseq [s (keys @slacker-clients)]
+      (when-not (contains? servers s)
+        (logging/infof "closing connection of %s" s)
+        (let [the-client (@slacker-clients s)]
+          (swap! slacker-clients dissoc s)
+          (slacker.client/close-slackerc the-client))))))
 
 (defn- find-least-in-flight-server [^ClusterEnabledSlackerClient client servers]
   (->> servers
