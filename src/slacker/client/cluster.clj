@@ -93,7 +93,8 @@
                                         {:servers (map :server failed-results)
                                          :nested (map :cause failed-results)}
 
-                                        (empty? valid-results)
+                                        (and (empty? valid-results)
+                                             (= grouping-exceptions :all))
                                         {:nested (map :cause call-results)}))]
     (doseq [r failed-results]
       (logging/warn (str "error calling "
@@ -312,6 +313,7 @@
   * grouping-exceptions: how to deal with the exceptions when calling functions  on multiple instance.
       * `:all` the API throws exception when exception is thrown on every instance
       * `:any` the API throws exception when any instance throws exception
+      * `(fn [valid-result error-results])` a function to decide what exception to throw or never
   * server-data-change-handler: a function accepts the client object, server
     address and server data. Note that this function runs on
     event thread so never do blocking things within it. "
