@@ -211,8 +211,7 @@
           (parse-grouping-options call-options
                                   ns-name func-name params)
           slacker-ns-servers (get-ns-mappings this)
-          target-servers (find-server this slacker-ns-servers ns-name
-                                      (partial grouping* ns-name func-name params))
+          target-servers (find-server this slacker-ns-servers ns-name grouping*)
           target-conns (filter identity (map @slacker-clients target-servers))
           grouping-fn (partial group-call-results
                                grouping-results*
